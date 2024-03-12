@@ -12,7 +12,7 @@ class AllTalkTtsProvider {
     constructor() {
         // Initialize with default settings if they are not already set
         this.settings = {
-            provider_endpoint: this.settings.provider_endpoint || 'http://localhost:7851',
+            provider_endpoint: this.settings.provider_endpoint || 'http://localhost:6006',
             language: this.settings.language || 'en',
             voiceMap: this.settings.voiceMap || {},
             at_generation_method: this.settings.at_generation_method || 'standard_generation',

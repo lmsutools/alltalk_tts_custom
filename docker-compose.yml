@@ -4,7 +4,7 @@ services:
     image: erew123/alltalk_tts:cpu
     restart: unless-stopped
     ports:
-      - "7851:7851"
+      - "6006:6006"
     volumes:
       - ./outputs:/app/outputs/
       - ./models:/app/models/

@@ -326,7 +326,7 @@ Other possibilities for this issue are:
 
 4) You have an old version of text-generation-webui (pre Dec 2023) I have not tested on older versions of text-generation-webui, so cannot confirm viability on older versions. For instructions on updating the text-generation-webui, please look [here](https://github.com/oobabooga/text-generation-webui#how-to-install) (`update_linux.sh`, `update_windows.bat`, `update_macos.sh`, or `update_wsl.bat`).
 
-5) You already have something running on port 7851 on your computer, so the mini-webserver cant start on that port. You can change this port number by editing the `confignew.json` file and changing `"port_number": "7851"` to `"port_number": "7602"` or any port number you wish that isn’t reserved. Only change the number and save the file, do not change the formatting of the document. This will at least discount that you have something else clashing on the same port number.
+5) You already have something running on port 6006 on your computer, so the mini-webserver cant start on that port. You can change this port number by editing the `confignew.json` file and changing `"port_number": "6006"` to `"port_number": "7602"` or any port number you wish that isn’t reserved. Only change the number and save the file, do not change the formatting of the document. This will at least discount that you have something else clashing on the same port number.
 
 6) You have antivirus/firewalling that is blocking that port from being accessed. If you had to do something to allow text-generation-webui through your antivirus/firewall, you will have to do that for this too.
 
@@ -778,27 +778,27 @@ The Text-to-Speech (TTS) Generation API allows you to generate speech from text 
 #### 🟠 Ready Endpoint<br>
 Check if the Text-to-Speech (TTS) service is ready to accept requests.
 
-- URL: `http://127.0.0.1:7851/api/ready`<br> - Method: `GET`<br> 
+- URL: `http://127.0.0.1:6006/api/ready`<br> - Method: `GET`<br> 
 
-   `curl -X GET "http://127.0.0.1:7851/api/ready"`
+   `curl -X GET "http://127.0.0.1:6006/api/ready"`
 
   Response: `Ready`
 
 #### 🟠 Voices List Endpoint<br>
 Retrieve a list of available voices for generating speech.
 
-- URL: `http://127.0.0.1:7851/api/voices`<br> - Method: `GET`<br>
+- URL: `http://127.0.0.1:6006/api/voices`<br> - Method: `GET`<br>
 
-   `curl -X GET "http://127.0.0.1:7851/api/voices"`
+   `curl -X GET "http://127.0.0.1:6006/api/voices"`
 
    JSON return: `{"voices": ["voice1.wav", "voice2.wav", "voice3.wav"]}`
 
 #### 🟠 Current Settings Endpoint<br>
 Retrieve a list of available voices for generating speech.
 
-- URL: `http://127.0.0.1:7851/api/currentsettings`<br> - Method: `GET`<br>
+- URL: `http://127.0.0.1:6006/api/currentsettings`<br> - Method: `GET`<br>
 
-   `curl -X GET "http://127.0.0.1:7851/api/currentsettings"`
+   `curl -X GET "http://127.0.0.1:6006/api/currentsettings"`
 
    JSON return: ```{"models_available":[{"name":"Coqui","model_name":"API TTS"},{"name":"Coqui","model_name":"API Local"},{"name":"Coqui","model_name":"XTTSv2 Local"}],"current_model_loaded":"XTTSv2 Local","deepspeed_available":true,"deepspeed_status":true,"low_vram_status":true,"finetuned_model":false}```
 
@@ -812,24 +812,24 @@ Retrieve a list of available voices for generating speech.
 #### 🟠 Preview Voice Endpoint
 Generate a preview of a specified voice with hardcoded settings.
 
-- URL: `http://127.0.0.1:7851/api/previewvoice/`<br> - Method: `POST`<br> - Content-Type: `application/x-www-form-urlencoded`<br>
+- URL: `http://127.0.0.1:6006/api/previewvoice/`<br> - Method: `POST`<br> - Content-Type: `application/x-www-form-urlencoded`<br>
 
-   `curl -X POST "http://127.0.0.1:7851/api/previewvoice/" -F "voice=female_01.wav"`
+   `curl -X POST "http://127.0.0.1:6006/api/previewvoice/" -F "voice=female_01.wav"`
 
    Replace `female_01.wav` with the name of the voice sample you want to hear.
 
-   JSON return: `{"status": "generate-success", "output_file_path": "/path/to/outputs/api_preview_voice.wav", "output_file_url": "http://127.0.0.1:7851/audio/api_preview_voice.wav"}`
+   JSON return: `{"status": "generate-success", "output_file_path": "/path/to/outputs/api_preview_voice.wav", "output_file_url": "http://127.0.0.1:6006/audio/api_preview_voice.wav"}`
 
 #### 🟠 Switching Model Endpoint<br>
 
-- URL: `http://127.0.0.1:7851/api/reload`<br> - Method: `POST`<br><br>
-   `curl -X POST "http://127.0.0.1:7851/api/reload?tts_method=API%20Local"`<br>
-   `curl -X POST "http://127.0.0.1:7851/api/reload?tts_method=API%20TTS"`<br>
-   `curl -X POST "http://127.0.0.1:7851/api/reload?tts_method=XTTSv2%20Local"`<br>
+- URL: `http://127.0.0.1:6006/api/reload`<br> - Method: `POST`<br><br>
+   `curl -X POST "http://127.0.0.1:6006/api/reload?tts_method=API%20Local"`<br>
+   `curl -X POST "http://127.0.0.1:6006/api/reload?tts_method=API%20TTS"`<br>
+   `curl -X POST "http://127.0.0.1:6006/api/reload?tts_method=XTTSv2%20Local"`<br>
 
    Switch between the 3 models respectively.
 
-   `curl -X POST "http://127.0.0.1:7851/api/reload?tts_method=XTTSv2%20FT"`<br>
+   `curl -X POST "http://127.0.0.1:6006/api/reload?tts_method=XTTSv2%20FT"`<br>
 
    If you have a finetuned model in `/models/trainedmodel/` (will error otherwise)
 
@@ -837,8 +837,8 @@ Generate a preview of a specified voice with hardcoded settings.
 
 #### 🟠 Switch DeepSpeed Endpoint<br>
 
-- URL: `http://127.0.0.1:7851/api/deepspeed`<br> - Method: `POST`<br><br>
-   `curl -X POST "http://127.0.0.1:7851/api/deepspeed?new_deepspeed_value=True"`
+- URL: `http://127.0.0.1:6006/api/deepspeed`<br> - Method: `POST`<br><br>
+   `curl -X POST "http://127.0.0.1:6006/api/deepspeed?new_deepspeed_value=True"`
 
    Replace True with False to disable DeepSpeed mode.
 
@@ -846,8 +846,8 @@ Generate a preview of a specified voice with hardcoded settings.
 
 #### 🟠 Switching Low VRAM Endpoint<br>
 
-- URL: `http://127.0.0.1:7851/api/lowvramsetting`<br> - Method: `POST`<br><br>
-   `curl -X POST "http://127.0.0.1:7851/api/lowvramsetting?new_low_vram_value=True"`
+- URL: `http://127.0.0.1:6006/api/lowvramsetting`<br> - Method: `POST`<br><br>
+   `curl -X POST "http://127.0.0.1:6006/api/lowvramsetting?new_low_vram_value=True"`
 
    Replace True with False to disable Low VRAM mode.
 
@@ -856,16 +856,16 @@ Generate a preview of a specified voice with hardcoded settings.
 ### 🟠 TTS Generation Endpoint (Standard Generation)
 Streaming endpoint details are further down the page.
 
-- URL: `http://127.0.0.1:7851/api/tts-generate`<br> - Method: `POST`<br> - Content-Type: `application/x-www-form-urlencoded`<br>
+- URL: `http://127.0.0.1:6006/api/tts-generate`<br> - Method: `POST`<br> - Content-Type: `application/x-www-form-urlencoded`<br>
 
 ### 🟠 Example command lines (Standard Generation)
 Standard TTS generation supports Narration and will generate a wav file/blob. Standard TTS speech Example (standard text) generating a time-stamped file<br>
 
-`curl -X POST "http://127.0.0.1:7851/api/tts-generate" -d "text_input=All of this is text spoken by the character. This is text not inside quotes, though that doesnt matter in the slightest" -d "text_filtering=standard" -d "character_voice_gen=female_01.wav" -d "narrator_enabled=false" -d "narrator_voice_gen=male_01.wav" -d "text_not_inside=character" -d "language=en" -d "output_file_name=myoutputfile" -d "output_file_timestamp=true" -d "autoplay=true" -d "autoplay_volume=0.8"`<br>
+`curl -X POST "http://127.0.0.1:6006/api/tts-generate" -d "text_input=All of this is text spoken by the character. This is text not inside quotes, though that doesnt matter in the slightest" -d "text_filtering=standard" -d "character_voice_gen=female_01.wav" -d "narrator_enabled=false" -d "narrator_voice_gen=male_01.wav" -d "text_not_inside=character" -d "language=en" -d "output_file_name=myoutputfile" -d "output_file_timestamp=true" -d "autoplay=true" -d "autoplay_volume=0.8"`<br>
 
 Narrator Example (standard text) generating a time-stamped file
 
-`curl -X POST "http://127.0.0.1:7851/api/tts-generate" -d "text_input=*This is text spoken by the narrator* \"This is text spoken by the character\". This is text not inside quotes." -d "text_filtering=standard" -d "character_voice_gen=female_01.wav" -d "narrator_enabled=true" -d "narrator_voice_gen=male_01.wav" -d "text_not_inside=character" -d "language=en" -d "output_file_name=myoutputfile" -d "output_file_timestamp=true" -d "autoplay=true" -d "autoplay_volume=0.8"`<br>
+`curl -X POST "http://127.0.0.1:6006/api/tts-generate" -d "text_input=*This is text spoken by the narrator* \"This is text spoken by the character\". This is text not inside quotes." -d "text_filtering=standard" -d "character_voice_gen=female_01.wav" -d "narrator_enabled=true" -d "narrator_voice_gen=male_01.wav" -d "text_not_inside=character" -d "language=en" -d "output_file_name=myoutputfile" -d "output_file_timestamp=true" -d "autoplay=true" -d "autoplay_volume=0.8"`<br>
 
 Note that if your text that needs to be generated contains double quotes you will need to escape them with `\"` (Please see the narrator example).
 
@@ -960,12 +960,12 @@ The API returns a JSON object with the following properties:
 
 Example JSON TTS Generation Response:
 
-`{"status":"generate-success","output_file_path":"C:\\text-generation-webui\\extensions\\alltalk_tts\\outputs\\myoutputfile_1704141936.wav","output_file_url":"http://127.0.0.1:7851/audio/myoutputfile_1704141936.wav","output_cache_url":"http://127.0.0.1:7851/audiocache/myoutputfile_1704141936.wav"}`
+`{"status":"generate-success","output_file_path":"C:\\text-generation-webui\\extensions\\alltalk_tts\\outputs\\myoutputfile_1704141936.wav","output_file_url":"http://127.0.0.1:6006/audio/myoutputfile_1704141936.wav","output_cache_url":"http://127.0.0.1:6006/audiocache/myoutputfile_1704141936.wav"}`
 
 ### 🟠 TTS Generation Endpoint (Streaming Generation)
 Streaming TTS generation does NOT support Narration and will generate an audio stream. Streaming TTS speech JavaScript Example:<br>
 
-- URL: `http://localhost:7851/api/tts-generate-streaming`<br> - Method: `POST`<br> - Content-Type: `application/x-www-form-urlencoded`<br><br>
+- URL: `http://localhost:6006/api/tts-generate-streaming`<br> - Method: `POST`<br> - Content-Type: `application/x-www-form-urlencoded`<br><br>
 
 ```
 // Example parameters
@@ -976,7 +976,7 @@ const outputFile = "stream_output.wav";
 // Encode the text for URL
 const encodedText = encodeURIComponent(text);
 // Create the streaming URL
-const streamingUrl = `http://localhost:7851/api/tts-generate-streaming?text=${encodedText}&voice=${voice}&language=${language}&output_file=${outputFile}`;
+const streamingUrl = `http://localhost:6006/api/tts-generate-streaming?text=${encodedText}&voice=${voice}&language=${language}&output_file=${outputFile}`;
 // Create and play the audio element
 const audioElement = new Audio(streamingUrl);
 audioElement.play(); // Play the audio stream directly

@@ -6,8 +6,8 @@
   <DefaultLocale>en-US</DefaultLocale>
   <DisplayName DefaultValue="AllTalk TTS"/>
   <Description DefaultValue="Enhance your document creation with AllTalk TTS's advanced text-to-voice functionality. Requires connection to AllTalk server."/>
-  <IconUrl DefaultValue="http://127.0.0.1:7851/api/word_addin/assets/icon-32.png"/>
-  <HighResolutionIconUrl DefaultValue="http://127.0.0.1:7851/api/word_addin/assets/icon-64.png"/>
+  <IconUrl DefaultValue="http://127.0.0.1:6006/api/word_addin/assets/icon-32.png"/>
+  <HighResolutionIconUrl DefaultValue="http://127.0.0.1:6006/api/word_addin/assets/icon-64.png"/>
   <SupportUrl DefaultValue="https://github.com/erew123/alltalk_tts/issues"/>
   <AppDomains>
     <AppDomain>https://www.contoso.com</AppDomain>
@@ -16,7 +16,7 @@
     <Host Name="Document"/>
   </Hosts>
   <DefaultSettings>
-    <SourceLocation DefaultValue="http://127.0.0.1:7851/api/word_addin/taskpane.html"/>
+    <SourceLocation DefaultValue="http://127.0.0.1:6006/api/word_addin/taskpane.html"/>
   </DefaultSettings>
   <Permissions>ReadWriteDocument</Permissions>
   <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
@@ -58,14 +58,14 @@
     </Hosts>
     <Resources>
       <bt:Images>
-        <bt:Image id="Icon.16x16" DefaultValue="http://127.0.0.1:7851/api/word_addin/assets/icon-16.png"/>
-        <bt:Image id="Icon.32x32" DefaultValue="http://127.0.0.1:7851/api/word_addin/assets/icon-32.png"/>
-        <bt:Image id="Icon.80x80" DefaultValue="http://127.0.0.1:7851/api/word_addin/assets/icon-80.png"/>
+        <bt:Image id="Icon.16x16" DefaultValue="http://127.0.0.1:6006/api/word_addin/assets/icon-16.png"/>
+        <bt:Image id="Icon.32x32" DefaultValue="http://127.0.0.1:6006/api/word_addin/assets/icon-32.png"/>
+        <bt:Image id="Icon.80x80" DefaultValue="http://127.0.0.1:6006/api/word_addin/assets/icon-80.png"/>
       </bt:Images>
       <bt:Urls>
         <!-- Ensure that these URLs are pointing to valid locations -->
-        <bt:Url id="Commands.Url" DefaultValue="http://127.0.0.1:7851/api/word_addin/commands.html"/>
-        <bt:Url id="Taskpane.Url" DefaultValue="http://127.0.0.1:7851/api/word_addin/taskpane.html"/>
+        <bt:Url id="Commands.Url" DefaultValue="http://127.0.0.1:6006/api/word_addin/commands.html"/>
+        <bt:Url id="Taskpane.Url" DefaultValue="http://127.0.0.1:6006/api/word_addin/taskpane.html"/>
       </bt:Urls>
       <bt:ShortStrings>
         <bt:String id="AllTalkGroup.Label" DefaultValue="AllTalk Controls"/>

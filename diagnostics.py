@@ -102,7 +102,7 @@ def log_system_info():
     # Port check (if psutil is available)
     port_status = "N/A"
     if 'psutil' in globals():
-        port_to_check = 7851
+        port_to_check = 6006
         if is_port_in_use(port_to_check):
             port_status = f"Port {port_to_check} is in use."
         else:

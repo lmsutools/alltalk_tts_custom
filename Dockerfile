@@ -7,6 +7,6 @@ RUN apt-get update && apt-get upgrade -y \
 WORKDIR /app
 COPY . .
 RUN pip install --no-cache-dir -r requirements_other.txt
-EXPOSE 7851
+EXPOSE 6006
 RUN chmod +x launch.sh
 ENTRYPOINT ["sh", "-c", "./launch.sh"]

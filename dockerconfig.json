@@ -15,7 +15,7 @@
     "narrator_voice": "female_01.wav",
     "output_folder_wav": "extensions/alltalk_tts/outputs/",
     "output_folder_wav_standalone": "outputs/",
-    "port_number": "7851",
+    "port_number": "6006",
     "remove_trailing_dots": false,
     "show_text": true,
     "tts_method_api_local": false,
