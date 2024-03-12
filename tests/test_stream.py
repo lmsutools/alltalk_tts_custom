@@ -1,4 +1,3 @@
-
 import argparse
 import shutil
 import subprocess
@@ -95,6 +94,5 @@ if __name__ == "__main__":
         args.output_file,
         save=bool(args.output_file)
     )
-
-
+    
 #python .\tests\loadtest.py --num_requests 1 --text "So If you encounter permission errors while installing packages" --voice "female_01.wav"

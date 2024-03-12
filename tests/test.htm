@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>TTS Server Test</title>
+    <link href="test_load.css" rel="stylesheet">
+    <style>
+        #numRequests,
+        #rampUpSeconds {
+            width: 15ch;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>TTS Server Test</h1>
+
+        <div class="form-group">
+            <label for="serverUrl">Server URL:</label>
+            <input type="text" id="serverUrl" placeholder="Enter server URL" />
+        </div>
+
+        <div class="form-group">
+            <label>Select Message Length:</label>
+            <div class="radio-group">
+                <label>
+                    <input type="radio" name="messageLength" value="short" checked />
+                    Short (up to 5 words)
+                </label>
+                <label>
+                    <input type="radio" name="messageLength" value="medium" />
+                    Medium (15 to 22 words)
+                </label>
+                <label>
+                    <input type="radio" name="messageLength" value="long" />
+                    Long (50 to 120 words)
+                </label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label>Select Text Option:</label>
+            <div class="radio-group">
+                <label>
+                    <input type="radio" name="textOption" value="same" checked />
+                    Use Same Text
+                </label>
+                <label>
+                    <input type="radio" name="textOption" value="different" />
+                    Use Different Text
+                </label>
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="numRequests">Number of Requests:</label>
+            <input type="number" id="numRequests" min="1" value="1" />
+        </div>
+
+        <div class="form-group">
+            <label for="rampUpSeconds">Ramp Up Seconds:</label>
+            <input type="number" id="rampUpSeconds" min="0" value="0" />
+        </div>
+
+        <button id="requestButton" class="request-button">Send Requests</button>
+
+        <div class="stats">
+            <p>Total Processing Time: <span id="totalProcessingTime"></span> ms</p>
+            <p>Request Rate: <span id="requestRate"></span> req/sec</p>
+            <p>Latency Distribution:</p>
+            <div>
+                <p>Average: <span id="avgLatency"></span> ms</p>
+                <p>Minimum: <span id="minLatency"></span> ms</p>
+                <p>Maximum: <span id="maxLatency"></span> ms</p>
+                <p>90th Percentile: <span id="p90Latency"></span> ms</p>
+                <p>95th Percentile: <span id="p95Latency"></span> ms</p>
+            </div>
+        </div>
+
+        <div id="requestsContainer"></div>
+    </div>
+
+    <script>
+        const requestsContainer = document.getElementById("requestsContainer");
+        const requestButton = document.getElementById("requestButton");
+        const serverUrlInput = document.getElementById("serverUrl");
+        const numRequestsInput = document.getElementById("numRequests");
+        const rampUpSecondsInput = document.getElementById("rampUpSeconds");
+        const totalProcessingTimeSpan = document.getElementById("totalProcessingTime");
+        const requestRateSpan = document.getElementById("requestRate");
+        const avgLatencySpan = document.getElementById("avgLatency");
+        const minLatencySpan = document.getElementById("minLatency");
+        const maxLatencySpan = document.getElementById("maxLatency");
+        const p90LatencySpan = document.getElementById("p90Latency");
+        const p95LatencySpan = document.getElementById("p95Latency");
+
+        let latencies = [];
+        let startTime;
+
+        const shortPhrases = [
+            "Hello, I'm John.",
+            "The system is operational.",
+            "I'm here to assist.",
+            "Welcome to the test.",
+            "How can I help?",
+        ];
+
+        const mediumPhrases = [
+            "Greetings! My name is Emma, and I'm pleased to inform you that the system is functioning as expected.",
+            "Hi there! I'm Michael, and I wanted to let you know that everything is running smoothly.",
+            "Good day! This is Sarah, and I'm happy to report that all systems are operational and ready to go.",
+        ];
+
+        const longPhrases = [
+            "Hello! My name is David, and I'm here to provide you with an update on the current status of the system. After conducting a thorough analysis and running multiple diagnostic tests, I can confidently say that everything is working perfectly and performing optimally. Rest assured that we are continuously monitoring the system to ensure its stability and efficiency.",
+            "Hi there! I'm Emily, and I hope this message finds you well. I wanted to take a moment to share some exciting news about the recent upgrades we've made to the system. Our team has been working diligently to enhance its functionality and performance, and I'm thrilled to announce that the improvements have been successfully implemented. The system is now faster, more reliable, and better equipped to handle complex tasks.",
+        ];
+
+        function generateTextInput() {
+            const messageLength = document.querySelector(
+                'input[name="messageLength"]:checked'
+            ).value;
+
+            if (messageLength === "short") {
+                return shortPhrases[Math.floor(Math.random() * shortPhrases.length)];
+            } else if (messageLength === "medium") {
+                return mediumPhrases[
+                    Math.floor(Math.random() * mediumPhrases.length)
+                ];
+            } else {
+                return longPhrases[Math.floor(Math.random() * longPhrases.length)];
+            }
+        }
+
+        window.addEventListener("DOMContentLoaded", () => {
+            const savedServerUrl = localStorage.getItem("serverUrl");
+            if (savedServerUrl) {
+                serverUrlInput.value = savedServerUrl;
+            }
+        });
+
+        serverUrlInput.addEventListener("input", () => {
+            const serverUrl = serverUrlInput.value.trim();
+            localStorage.setItem("serverUrl", serverUrl);
+        });
+
+        function createRequestContainer(index) {
+            const requestContainer = document.createElement("div");
+            requestContainer.classList.add("request-container");
+            requestContainer.innerHTML = `
+                <h3>Request ${index + 1}</h3>
+                <div class="audio-player">
+                    <audio id="audioPlayer${index}" controls></audio>
+                </div>
+                <div class="stats">
+                    <p>Response Time: <span id="responseTime${index}"></span> ms</p>
+                    <p>Playback Start Time: <span id="playbackStartTime${index}"></span> ms</p>
+                </div>
+                <div class="text-sent">
+                    <p>Text Sent: <span id="textSent${index}"></span></p>
+                </div>
+            `;
+            requestsContainer.appendChild(requestContainer);
+        }
+
+        function sendTTSRequest(index, textInput) {
+            const requestStartTime = Date.now();
+            let serverUrl = serverUrlInput.value.trim();
+
+            if (serverUrl.endsWith('/')) {
+                serverUrl = serverUrl.slice(0, -1);
+            }
+
+            const voice = 'female_01.wav';
+            const language = 'en';
+            const outputFile = `output${index}.mp3`;
+
+            const textSentSpan = document.getElementById(`textSent${index}`);
+            textSentSpan.textContent = textInput;
+
+            const encodedText = encodeURIComponent(textInput);
+            const streamingUrl = `${serverUrl}/api/tts-generate-streaming?text=${encodedText}&voice=${voice}&language=${language}&output_file=${outputFile}`;
+
+            return fetch(streamingUrl)
+                .then(response => {
+                    const responseTime = Date.now() - requestStartTime;
+                    const responseTimeSpan = document.getElementById(`responseTime${index}`);
+                    responseTimeSpan.textContent = responseTime;
+                    latencies.push(responseTime);
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    return response.blob();
+                })
+                .then(audioBlob => {
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    const audioPlayer = document.getElementById(`audioPlayer${index}`);
+                    audioPlayer.src = audioUrl;
+                    audioPlayer.play();
+
+                    const playbackStartTime = Date.now() - requestStartTime;
+                    const playbackStartTimeSpan = document.getElementById(`playbackStartTime${index}`);
+                    playbackStartTimeSpan.textContent = playbackStartTime;
+                });
+        }
+
+        function calculateStats() {
+            const numRequests = latencies.length;
+            const elapsedTime = (Date.now() - startTime) / 1000; // Convert to seconds
+            const requestRate = numRequests / elapsedTime;
+            requestRateSpan.textContent = requestRate.toFixed(2);
+
+            const totalLatency = latencies.reduce((sum, latency) => sum + latency, 0);
+            const avgLatency = totalLatency / numRequests;
+            const minLatency = Math.min(...latencies);
+            const maxLatency = Math.max(...latencies);
+            const sortedLatencies = latencies.slice().sort((a, b) => a - b);
+            const p90Index = Math.floor(numRequests * 0.9);
+            const p90Latency = sortedLatencies[p90Index];
+            const p95Index = Math.floor(numRequests * 0.95);
+            const p95Latency = sortedLatencies[p95Index];
+
+            avgLatencySpan.textContent = avgLatency.toFixed(2);
+            minLatencySpan.textContent = minLatency;
+            maxLatencySpan.textContent = maxLatency;
+            p90LatencySpan.textContent = p90Latency;
+            p95LatencySpan.textContent = p95Latency;
+        }
+
+        async function sendRequests() {
+            latencies = []; // Reset latencies array
+            startTime = Date.now();
+
+            const numRequests = parseInt(numRequestsInput.value);
+            const rampUpSeconds = parseInt(rampUpSecondsInput.value);
+            const textOption = document.querySelector('input[name="textOption"]:checked').value;
+
+            requestsContainer.innerHTML = ""; // Clear previous requests
+
+            const requestPromises = [];
+            if (textOption === "same") {
+                const textInput = generateTextInput();
+                for (let i = 0; i < numRequests; i++) {
+                    createRequestContainer(i);
+                    requestPromises.push(
+                        new Promise(resolve => {
+                            setTimeout(() => {
+                                sendTTSRequest(i, textInput).then(resolve);
+                            }, i * (rampUpSeconds * 1000));
+                        })
+                    );
+                }
+            } else {
+                for (let i = 0; i < numRequests; i++) {
+                    const textInput = generateTextInput();
+                    createRequestContainer(i);
+                    requestPromises.push(
+                        new Promise(resolve => {
+                            setTimeout(() => {
+                                sendTTSRequest(i, textInput).then(resolve);
+                            }, i * (rampUpSeconds * 1000));
+                        })
+                    );
+                }
+            }
+
+            await Promise.all(requestPromises);
+            const totalProcessingTime = Date.now() - startTime;
+            totalProcessingTimeSpan.textContent = totalProcessingTime;
+
+            calculateStats();
+        }
+
+        requestButton.addEventListener('click', sendRequests);
+    </script>
+</body>
+
+</html>

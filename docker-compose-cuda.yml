@@ -1,7 +1,7 @@
 version: '3.8'
 services:
   alltalk-tts:
-    image: erew123/alltalk_tts:cuda
+    image: lcomunicamos/alltalk:cuda
     restart: unless-stopped
     ports:
       - "6006:6006"
