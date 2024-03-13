@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>TTS Streaming</title>
+  <style>
+    .player {
+      margin-top: 20px;
+    }
+    .player button {
+      margin-right: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>TTS Streaming</h1>
+  <button onclick="startTTS()">Start TTS</button>
+
+  <div class="player">
+    <button onclick="playAudio()">Play</button>
+    <button onclick="pauseAudio()">Pause</button>
+    <button onclick="stopAudio()">Stop</button>
+  </div>
+
+  <script>
+    let audioContext = null;
+    let source = null;
+
+    function startTTS() {
+      if (source) {
+        source.stop();
+      }
+
+      const text = "So If you encounter permission errors while installing packages, you can try running PowerShell. On Wikipedia and other sites running on MediaWiki, Special:Random can be used to access a random article in the main namespace; this feature is useful as a tool to generate a random article. Depending on your browser, it's also possible to load a random page. So If you encounter permission errors while installing packages, you can try running PowerShell. On Wikipedia and other sites running on MediaWiki, Special:Random can be used to access a random article in the main namespace;";
+      const voice = "female_01.wav";
+      const language = "en";
+      const serverUrl = "https://bf13c60e2ff11.notebooksb.jarvislabs.net";
+      const outputFile = null;
+
+      const start = performance.now();
+      const encodedText = encodeURIComponent(text);
+      const streamingUrl = `${serverUrl}/api/tts-generate-streaming?text=${encodedText}&voice=${voice}&language=${language}&output_file=${outputFile}`;
+
+      audioContext = new AudioContext();
+      const chunks = [];
+
+      fetch(streamingUrl)
+        .then(response => {
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return response.body;
+        })
+        .then(body => {
+          const reader = body.getReader();
+          let firstChunkReceived = false;
+
+          function readChunk() {
+            return reader.read().then(({ done, value }) => {
+              if (done) {
+                return;
+              }
+
+              if (!firstChunkReceived) {
+                const end = performance.now();
+                console.log(`-> First chunk received after ${((end - start) / 1000).toFixed(3)} seconds of the request being sent.`);
+                console.log(`-> Total character count: ${text.length}`);
+                firstChunkReceived = true;
+              }
+
+              chunks.push(value);
+              return readChunk();
+            });
+          }
+
+          return readChunk();
+        })
+        .then(() => {
+          const blob = new Blob(chunks, { type: 'audio/wav' });
+          return blob.arrayBuffer();
+        })
+        .then(arrayBuffer => audioContext.decodeAudioData(arrayBuffer))
+        .then(audioBuffer => {
+          source = audioContext.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(audioContext.destination);
+          source.start();
+        })
+        .catch(error => {
+          console.error('Error:', error);
+        })
+        .finally(() => {
+          const end = performance.now();
+          console.log(`-> Total response time: ${((end - start) / 1000).toFixed(3)} seconds`);
+        });
+    }
+
+    function playAudio() {
+      if (audioContext && source) {
+        source.start();
+      }
+    }
+
+    function pauseAudio() {
+      if (audioContext && source) {
+        source.stop();
+      }
+    }
+
+    function stopAudio() {
+      if (audioContext && source) {
+        source.stop();
+        source.disconnect();
+        source = null;
+      }
+    }
+  </script>
+</body>
+</html>

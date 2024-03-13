@@ -1,4 +1,3 @@
-
 import argparse
 import shutil
 import subprocess
@@ -21,9 +20,9 @@ def stream_ffplay(audio_stream, output_file, save=True):
     if not save:
         ffplay_cmd = ["ffplay", "-nodisp", "-probesize", "1024", "-autoexit", "-"]
     else:
-        print("Saving to ", output_file)
+        print("Saving to", output_file)
         ffplay_cmd = ["ffmpeg", "-probesize", "1024", "-i", "-", output_file]
-    ffplay_proc = subprocess.Popen(ffplay_cmd, stdin=subprocess.PIPE)
+    ffplay_proc = subprocess.Popen(ffplay_cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     for chunk in audio_stream:
         if chunk is not None:
             ffplay_proc.stdin.write(chunk)
@@ -33,37 +32,33 @@ def stream_ffplay(audio_stream, output_file, save=True):
 
 def tts(text, voice, language, server_url, output_file) -> Iterator[bytes]:
     start = time.perf_counter()
-    
     # Encode the text for URL
     encoded_text = requests.utils.quote(text)
-    
     # Create the streaming URL
     streaming_url = f"{server_url}/api/tts-generate-streaming?text={encoded_text}&voice={voice}&language={language}&output_file={output_file}"
-    
     res = requests.get(streaming_url, stream=True)
-    
-    end = time.perf_counter()
-    print(f"Time to make GET: {end-start}s", file=sys.stderr)
-    
     if res.status_code != 200:
         print("Error:", res.text)
         sys.exit(1)
-    
-    first = True
+    first_chunk_received = False
     for chunk in res.iter_content(chunk_size=512):
-        if first:
+        if not first_chunk_received:
             end = time.perf_counter()
-            print(f"Time to first chunk: {end-start}s", file=sys.stderr)
-            first = False
+            print(f"-> First chunk received after {end-start:.3f} seconds of the request being sent.", file=sys.stderr)
+            print(f"-> Total character count: {len(text)}", file=sys.stderr)
+            first_chunk_received = True
         if chunk:
             yield chunk
-    
-    print("⏱️ response.elapsed:", res.elapsed)
+    print(f"-> Total response time: {res.elapsed.total_seconds():.3f} seconds", file=sys.stderr)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "--text", default="So If you encounter permission errors while installing packages, you can try running PowerShell. On Wikipedia and other sites running on MediaWiki, Special:Random can be used to access a random article in the main namespace; this feature is useful as a tool to generate a random article. Depending on your browser, it's also possible to load a random page. So If you encounter permission errors while installing packages, you can try running PowerShell. On Wikipedia and other sites running on MediaWiki, Special:Random can be used to access a random article in the main namespace;",
+        "--text", 
+                default=("So If you encounter permission errors while installing packages, you can try running PowerShells. "
+                 "On Wikipedia and other sites running on MediaWiki, Special:Random can be used to access a random article in the main namespace; "
+                  "On Wikipedia and other sites running on MediaWiki, Special:Random can be used to access a random articl in the main namespace; "
+                  "On Wikipedia and other sites running on MediaWiki, Special:Random can be used to access a random article in the main namespace;"),
         help="text input for TTS"
     )
     parser.add_argument(
@@ -79,11 +74,9 @@ if __name__ == "__main__":
         help="Voice to use for TTS"
     )
     parser.add_argument(
-        "--server_url", default="https://7ba301f55a0c1.notebooksc.jarvislabs.net",
-       
+        "--server_url", default="https://97ef6c6df8251.notebooksd.jarvislabs.net",
     )
     args = parser.parse_args()
-
     audio = stream_ffplay(
         tts(
             args.text,
@@ -95,5 +88,3 @@ if __name__ == "__main__":
         args.output_file,
         save=bool(args.output_file)
     )
-
-#python .\tests\loadtest.py --num_requests 1 --text "So If you encounter permission errors while installing packages" --voice "female_01.wav"
