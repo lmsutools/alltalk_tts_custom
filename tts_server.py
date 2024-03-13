@@ -523,7 +523,7 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
             common_args["stream_chunk_size"] = 20
 
         # Call the appropriate function
-        output = inference_func(**common_args)
+        output = inference_func(**common_args) 
 
         # Process the output based on streaming or non-streaming
         if streaming:
