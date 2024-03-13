@@ -12,7 +12,7 @@ async def tts_request(session, text, voice, language, output_file):
     encoded_text = quote(text)
     
     # Create the streaming URL
-    streaming_url = f"https://1aa06e240b5e1.notebooksf.jarvislabs.net/api/tts-generate-streaming?text={encoded_text}&voice={voice}&language={language}&output_file={output_file}"
+    streaming_url = f"https://bf13c60e2ff11.notebooksb.jarvislabs.net/api/tts-generate-streaming?text={encoded_text}&voice={voice}&language={language}&output_file={output_file}"
     
     async with session.get(streaming_url) as res:
         end_time = time.perf_counter()
