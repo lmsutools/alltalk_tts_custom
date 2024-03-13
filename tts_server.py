@@ -495,6 +495,7 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
     
     # XTTSv2 LOCAL & Xttsv2 FT Method
     if params["tts_method_xtts_local"] or tts_method_xtts_ft:
+        method = "XTTSv2 Local" if params["tts_method_xtts_local"] else "XTTSv2 FT"
         print(f"[{params['branding']}TTSGen] {text}")
         gpt_cond_latent, speaker_embedding = model.get_conditioning_latents(
             audio_path=[f"{this_dir}/voices/{voice}"],
@@ -527,33 +528,14 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
 
         # Process the output based on streaming or non-streaming
         if streaming:
-            # Streaming-specific operations
-            file_chunks = []
-            wav_buf = io.BytesIO()
-            with wave.open(wav_buf, "wb") as vfout:
-                vfout.setnchannels(1)
-                vfout.setsampwidth(2)
-                vfout.setframerate(24000)
-                vfout.writeframes(b"")
-            wav_buf.seek(0)
-            yield wav_buf.read()
-
-            for i, chunk in enumerate(output):
-                file_chunks.append(chunk)
-                if isinstance(chunk, list):
-                    chunk = torch.cat(chunk, dim=0)
-                chunk = chunk.clone().detach().cpu().numpy()
-                chunk = chunk[None, : int(chunk.shape[0])]
-                chunk = np.clip(chunk, -1, 1)
-                chunk = (chunk * 32767).astype(np.int16)
-                yield chunk.tobytes()
+            for chunk in output:
+                yield chunk
         else:
-            # Non-streaming-specific operation
             torchaudio.save(output_file, torch.tensor(output["wav"]).unsqueeze(0), 24000)
 
-    
     # API LOCAL Methods
     elif params["tts_method_api_local"]:
+        method = "API Local"
         # Streaming only allowed for XTTSv2 local
         if streaming:
             raise ValueError("Streaming is only supported in XTTSv2 local")
@@ -574,6 +556,7 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
 
     # API TTS
     elif params["tts_method_api_tts"]:
+        method = "API TTS"
         # Streaming only allowed for XTTSv2 local
         if streaming:
             raise ValueError("Streaming is only supported in XTTSv2 local")
@@ -590,13 +573,11 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
     generate_end_time = time.time()  # Record the end time to generate TTS
     generate_elapsed_time = generate_end_time - generate_start_time
     print(
-        f"[{params['branding']}TTSGen] \033[93m{generate_elapsed_time:.2f} seconds. \033[94mLowVRAM: \033[33m{params['low_vram']} \033[94mDeepSpeed: \033[33m{params['deepspeed_activate']}\033[0m"
+        f"[{params['branding']}TTSGen] \033[93m{generate_elapsed_time:.2f} seconds. \033[94mMethod: \033[33m{method} \033[94mLowVRAM: \033[33m{params['low_vram']} \033[94mDeepSpeed: \033[33m{params['deepspeed_activate']}\033[0m"
     )
     # Move model back to cpu system ram if needed.
     if params["low_vram"] and device == "cuda":
         await switch_device()
-    return
-
 
 # TTS VOICE GENERATION METHODS - generate TTS API
 @app.route("/api/generate", methods=["POST"])
