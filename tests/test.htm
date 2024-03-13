@@ -182,29 +182,47 @@
             const encodedText = encodeURIComponent(textInput);
             const streamingUrl = `${serverUrl}/api/tts-generate-streaming?text=${encodedText}&voice=${voice}&language=${language}&output_file=${outputFile}`;
 
-            return fetch(streamingUrl)
-                .then(response => {
-                    const responseTime = Date.now() - requestStartTime;
-                    const responseTimeSpan = document.getElementById(`responseTime${index}`);
-                    responseTimeSpan.textContent = responseTime;
-                    latencies.push(responseTime);
+            const mediaSource = new MediaSource();
+            const audioPlayer = document.getElementById(`audioPlayer${index}`);
+            audioPlayer.src = URL.createObjectURL(mediaSource);
 
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
-                    }
+            mediaSource.addEventListener('sourceopen', function () {
+                const sourceBuffer = mediaSource.addSourceBuffer('audio/wav');
 
-                    return response.blob();
-                })
-                .then(audioBlob => {
-                    const audioUrl = URL.createObjectURL(audioBlob);
-                    const audioPlayer = document.getElementById(`audioPlayer${index}`);
-                    audioPlayer.src = audioUrl;
-                    audioPlayer.play();
+                fetch(streamingUrl)
+                    .then(response => {
+                        const responseTime = Date.now() - requestStartTime;
+                        const responseTimeSpan = document.getElementById(`responseTime${index}`);
+                        responseTimeSpan.textContent = responseTime;
+                        latencies.push(responseTime);
 
-                    const playbackStartTime = Date.now() - requestStartTime;
-                    const playbackStartTimeSpan = document.getElementById(`playbackStartTime${index}`);
-                    playbackStartTimeSpan.textContent = playbackStartTime;
-                });
+                        if (!response.ok) {
+                            throw new Error(`HTTP error! status: ${response.status}`);
+                        }
+
+                        const reader = response.body.getReader();
+
+                        function readChunk({ done, value }) {
+                            if (done) {
+                                mediaSource.endOfStream();
+                                return;
+                            }
+
+                            sourceBuffer.appendBuffer(value);
+                            return reader.read().then(readChunk);
+                        }
+
+                        return reader.read().then(readChunk);
+                    })
+                    .then(() => {
+                        const playbackStartTime = Date.now() - requestStartTime;
+                        const playbackStartTimeSpan = document.getElementById(`playbackStartTime${index}`);
+                        playbackStartTimeSpan.textContent = playbackStartTime;
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                    });
+            });
         }
 
         function calculateStats() {
