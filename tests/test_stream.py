@@ -57,8 +57,7 @@ if __name__ == "__main__":
         "--text", 
                 default=("So If you encounter permission errors while installing packages, you can try running PowerShells. "
                  "On Wikipedia and other sites running on MediaWiki, Special:Random can be used to access a random article in the main namespace; "
-                  "On Wikipedia and other sites running on MediaWiki, Special:Random can be used to access a random articl in the main namespace; "
-                  "On Wikipedia and other sites running on MediaWiki, Special:Random can be used to access a random article in the main namespace;"),
+                 ),
         help="text input for TTS"
     )
     parser.add_argument(
@@ -74,7 +73,7 @@ if __name__ == "__main__":
         help="Voice to use for TTS"
     )
     parser.add_argument(
-        "--server_url", default="https://97ef6c6df8251.notebooksd.jarvislabs.net",
+        "--server_url", default="https://28bf33b72f081.notebooksa.jarvislabs.net",
     )
     args = parser.parse_args()
     audio = stream_ffplay(
