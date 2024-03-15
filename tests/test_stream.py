@@ -56,7 +56,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--text", 
                 default=("So If you encounter permission errors while installing packages, you can try running PowerShells. "
-                 "On Wikipedia and other sites running on MediaWiki, Special:Random can be used to access a random article in the main namespace; "
+                 "On Wikipedia and other sites running on MediaWiki "
                  ),
         help="text input for TTS"
     )
