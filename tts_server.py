@@ -1181,5 +1181,9 @@ port_parameter = int(params["port_number"])
 
 if __name__ == "__main__":
     import uvicorn
+    from uvicorn.config import LOGGING_CONFIG
+
+    num_workers = LOGGING_CONFIG["formatters"]["default"]["use_colors"]
+    print(f"[{params['branding']}Startup] \033[94mStarting Uvicorn with {num_workers} worker(s)\033[0m")
 
     uvicorn.run(app, host=host_parameter, port=port_parameter, log_level="warning")

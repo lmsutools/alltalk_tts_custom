@@ -45,7 +45,7 @@ def send_requests(args):
         t = threading.Thread(target=tts, args=(args.text, args.voice, args.language, args.server_url, args.output_file, i + 1, first_chunk_times))
         threads.append(t)
         t.start()
-        time.sleep(1)  # Ramp-up of 1 second between each request
+        time.sleep(0.5)  # Ramp-up of 1 second between each request
 
     for t in threads:
         t.join()
@@ -60,8 +60,10 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--text",
-        default=("So If you encounter permission errors while installing packages, you can try running PowerShells. "
+        default=("So If you encounter permission errors while installing packages, you can try running PowerShells."
                  "On Wikipedia and other sites running on MediaWiki "
+                 "So If you encounter permission errors while installing packages, you can try running PowerShells."
+                 "So If you encounter errors while installing packages, you can try running PowerShells."
                  ),
         help="text input for TTS"
     )
@@ -82,7 +84,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--server_url",
-        default="https://28bf33b72f081.notebooksa.jarvislabs.net",
+        default="https://74767ceced371.notebooksll.jarvislabs.net",
     )
     parser.add_argument(
         "-r", "--requests",
