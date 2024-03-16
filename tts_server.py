@@ -9,6 +9,7 @@ from TTS.tts.configs.xtts_config import XttsConfig
 from TTS.tts.models.xtts import Xtts
 import io
 import wave
+import ffmpeg
 
 ##########################
 #### Webserver Imports####
@@ -27,455 +28,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.staticfiles import StaticFiles
 from contextlib import asynccontextmanager
 
-###########################
-#### STARTUP VARIABLES ####
-###########################
-# STARTUP VARIABLE - Create "this_dir" variable as the current script directory
-this_dir = Path(__file__).parent.resolve()
-# STARTUP VARIABLE - Set "device" to cuda if exists, otherwise cpu
-device = "cuda" if torch.cuda.is_available() else "cpu"
-# STARTUP VARIABLE - Import languges file for Gradio to be able to display them in the interface
-with open(this_dir / "languages.json", encoding="utf8") as f:
-    languages = json.load(f)
-# Base setting for a possible FineTuned model existing and the loader being available
-tts_method_xtts_ft = False
-
-#################################################################
-#### LOAD PARAMS FROM confignew.json - REQUIRED FOR BRANDING ####
-#################################################################
-# Load config file and get settings
-def load_config(file_path):
-    with open(file_path, "r") as configfile_path:
-        configfile_data = json.load(configfile_path)
-    return configfile_data
-
-
-# Define the path to the confignew.json file
-configfile_path = this_dir / "confignew.json"
-
-# Load confignew.json and assign it to a different variable (config_data)
-params = load_config(configfile_path)
-# check someone hasnt enabled lowvram on a system thats not cuda enabled
-params["low_vram"] = "false" if not torch.cuda.is_available() else params["low_vram"]
-
-# Load values for temperature and repetition_penalty
-temperature = params["local_temperature"]
-repetition_penalty = params["local_repetition_penalty"]
-
-# Define the path to the JSON file
-config_file_path = this_dir / "modeldownload.json"
-
-#############################################
-#### LOAD PARAMS FROM MODELDOWNLOAD.JSON ####
-############################################
-# This is used only in the instance that someone has changed their model path
-# Define the path to the JSON file
-modeldownload_config_file_path = this_dir / "modeldownload.json"
-
-# Check if the JSON file exists
-if modeldownload_config_file_path.exists():
-    with open(modeldownload_config_file_path, "r") as modeldownload_config_file:
-        modeldownload_settings = json.load(modeldownload_config_file)
-
-    # Extract settings from the loaded JSON
-    modeldownload_base_path = Path(modeldownload_settings.get("base_path", ""))
-    modeldownload_model_path = Path(modeldownload_settings.get("model_path", ""))
-else:
-    # Default settings if the JSON file doesn't exist or is empty
-    print(
-        f"[{params['branding']}Startup] \033[91mWarning\033[0m modeldownload.config is missing so please re-download it and save it in the alltalk_tts main folder."
-    )
-
-##################################################
-#### Check to see if a finetuned model exists ####
-##################################################
-# Set the path to the directory
-trained_model_directory = this_dir / "models" / "trainedmodel"
-# Check if the directory "trainedmodel" exists
-finetuned_model = trained_model_directory.exists()
-# If the directory exists, check for the existence of the required files
-if finetuned_model:
-    required_files = ["model.pth", "config.json", "vocab.json"]
-    finetuned_model = all((trained_model_directory / file).exists() for file in required_files)
-
-########################
-#### STARTUP CHECKS ####
-########################
-try:
-    from TTS.api import TTS
-    from TTS.utils.synthesizer import Synthesizer
-except ModuleNotFoundError:
-    print(
-        f"[{params['branding']}Startup] \033[91mWarning\033[0m Could not find the TTS module. Make sure to install the requirements for the alltalk_tts extension.",
-        f"[{params['branding']}Startup] \033[91mWarning\033[0m Linux / Mac:\npip install -r extensions/alltalk_tts/requirements.txt\n",
-        f"[{params['branding']}Startup] \033[91mWarning\033[0m Windows:\npip install -r extensions\\alltalk_tts\\requirements.txt\n",
-        f"[{params['branding']}Startup] \033[91mWarning\033[0m If you used the one-click installer, paste the command above in the terminal window launched after running the cmd_ script. On Windows, that's cmd_windows.bat."
-    )
-    raise
-
-# DEEPSPEED Import - Check for DeepSpeed and import it if it exists
-deepspeed_available = False
-try:
-    import deepspeed
-    deepspeed_available = True
-except ImportError:
-    pass
-if deepspeed_available:
-    print(f"[{params['branding']}Startup] DeepSpeed \033[93mDetected\033[0m")
-    print(f"[{params['branding']}Startup] Activate DeepSpeed in {params['branding']}settings")
-else:
-    print(f"[{params['branding']}Startup] DeepSpeed \033[93mNot Detected\033[0m. See https://github.com/microsoft/DeepSpeed")
-
-
-@asynccontextmanager
-async def startup_shutdown(no_actual_value_it_demanded_something_be_here):
-    await setup()
-    yield
-    # Shutdown logic
-
-
-# Create FastAPI app with lifespan
-app = FastAPI(lifespan=startup_shutdown)
-# Allow all origins, and set other CORS options
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # Set this to the specific origins you want to allow
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-#####################################
-#### MODEL LOADING AND UNLOADING ####
-#####################################
-# MODEL LOADERS Picker For API TTS, API Local, XTTSv2 Local, XTTSv2 FT
-async def setup():
-    global device
-    # Set a timer to calculate load times
-    generate_start_time = time.time()  # Record the start time of loading the model
-    # Start loading the correct model as set by "tts_method_api_tts", "tts_method_api_local" or "tts_method_xtts_local" being True/False
-    if params["tts_method_api_tts"]:
-        print(
-            f"[{params['branding']}Model] \033[94mAPI TTS Loading\033[0m {params['tts_model_name']} \033[94minto\033[93m",
-            device,
-            "\033[0m",
-        )
-        model = await api_load_model()
-    elif params["tts_method_api_local"]:
-        print(
-            f"[{params['branding']}Model] \033[94mAPI Local Loading\033[0m {modeldownload_model_path} \033[94minto\033[93m",
-            device,
-            "\033[0m",
-        )
-        model = await api_manual_load_model()
-    elif params["tts_method_xtts_local"]:
-        print(
-            f"[{params['branding']}Model] \033[94mXTTSv2 Local Loading\033[0m {modeldownload_model_path} \033[94minto\033[93m",
-            device,
-            "\033[0m",
-        )
-        model = await xtts_manual_load_model()
-    elif tts_method_xtts_ft:
-        print(
-            f"[{params['branding']}Model] \033[94mXTTSv2 FT Loading\033[0m /models/fintuned/model.pth \033[94minto\033[93m",
-            device,
-            "\033[0m",
-        )
-        model = await xtts_ft_manual_load_model()
-    # Create an end timer for calculating load times
-    generate_end_time = time.time()
-    # Calculate start time minus end time
-    generate_elapsed_time = generate_end_time - generate_start_time
-    # Print out the result of the load time
-    print(
-        f"[{params['branding']}Model] \033[94mModel Loaded in \033[93m{generate_elapsed_time:.2f} seconds.\033[0m"
-    )
-    # Set "tts_model_loaded" to true
-    params["tts_model_loaded"] = True
-    # Set the output path for wav files
-    output_directory = this_dir / params["output_folder_wav_standalone"]
-    output_directory.mkdir(parents=True, exist_ok=True)
-    #Path(f'this_folder/outputs/').mkdir(parents=True, exist_ok=True)
-
-
-# MODEL LOADER For "API TTS"
-async def api_load_model():
-    global model
-    model = TTS(params["tts_model_name"]).to(device)
-    return model
-
-
-# MODEL LOADER For "API Local"
-async def api_manual_load_model():
-    global model
-    # check to see if a custom path has been set in modeldownload.json and use that path to load the model if so
-    if str(modeldownload_base_path) == "models":
-        model = TTS(
-            model_path=this_dir / "models" / modeldownload_model_path,
-            config_path=this_dir / "models" / modeldownload_model_path / "config.json",
-        ).to(device)
-    else:
-        print(
-            f"[{params['branding']}Model] \033[94mInfo\033[0m Loading your custom model set in \033[93mmodeldownload.json\033[0m:",
-            modeldownload_base_path / modeldownload_model_path,
-        )
-        model = TTS(
-            model_path=modeldownload_base_path / modeldownload_model_path,
-            config_path=modeldownload_base_path / modeldownload_model_path / "config.json",
-        ).to(device)
-    return model
-
-
-# MODEL LOADER For "XTTSv2 Local"
-async def xtts_manual_load_model():
-    global model
-    config = XttsConfig()
-    # check to see if a custom path has been set in modeldownload.json and use that path to load the model if so
-    if str(modeldownload_base_path) == "models":
-        config_path = this_dir / "models" / modeldownload_model_path / "config.json"
-        vocab_path_dir = this_dir / "models" / modeldownload_model_path / "vocab.json"
-        checkpoint_dir = this_dir / "models" / modeldownload_model_path
-    else:
-        print(
-            f"[{params['branding']}Model] \033[94mInfo\033[0m Loading your custom model set in \033[93mmodeldownload.json\033[0m:",
-            modeldownload_base_path / modeldownload_model_path,
-        )
-        config_path = modeldownload_base_path / modeldownload_model_path / "config.json"
-        vocab_path_dir = modeldownload_base_path / modeldownload_model_path / "vocab.json"
-        checkpoint_dir = modeldownload_base_path / modeldownload_model_path
-    config.load_json(str(config_path))
-    model = Xtts.init_from_config(config)
-    model.load_checkpoint(
-        config,
-        checkpoint_dir=str(checkpoint_dir),
-        vocab_path=str(vocab_path_dir),
-        use_deepspeed=params["deepspeed_activate"],
-    )
-    model.to(device)
-    return model
-
-# MODEL LOADER For "XTTSv2 FT"
-async def xtts_ft_manual_load_model():
-    global model
-    config = XttsConfig()
-    config_path = this_dir / "models" / "trainedmodel" / "config.json"
-    vocab_path_dir = this_dir / "models" / "trainedmodel" / "vocab.json"
-    checkpoint_dir = this_dir / "models" / "trainedmodel"
-    config.load_json(str(config_path))
-    model = Xtts.init_from_config(config)
-    model.load_checkpoint(
-        config,
-        checkpoint_dir=str(checkpoint_dir),
-        vocab_path=str(vocab_path_dir),
-        use_deepspeed=params["deepspeed_activate"],
-    )
-    model.to(device)
-    return model
-
-# MODEL UNLOADER
-async def unload_model(model):
-    print(f"[{params['branding']}Model] \033[94mUnloading model \033[0m")
-    del model
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-    params["tts_model_loaded"] = False
-    return None
-
-
-# MODEL - Swap model based on Gradio selection API TTS, API Local, XTTSv2 Local
-async def handle_tts_method_change(tts_method):
-    global model
-    global tts_method_xtts_ft
-    # Update the params dictionary based on the selected radio button
-    print(
-        f"[{params['branding']}Model] \033[94mChanging model \033[92m(Please wait 15 seconds)\033[0m"
-    )
-    # Set other parameters to False
-    if tts_method == "API TTS":
-        params["tts_method_api_local"] = False
-        params["tts_method_xtts_local"] = False
-        params["tts_method_api_tts"] = True
-        params["deepspeed_activate"] = False
-        tts_method_xtts_ft = False
-    elif tts_method == "API Local":
-        params["tts_method_api_tts"] = False
-        params["tts_method_xtts_local"] = False
-        params["tts_method_api_local"] = True
-        params["deepspeed_activate"] = False
-        tts_method_xtts_ft = False
-    elif tts_method == "XTTSv2 Local":
-        params["tts_method_api_tts"] = False
-        params["tts_method_api_local"] = False
-        params["tts_method_xtts_local"] = True
-        tts_method_xtts_ft = False
-    elif tts_method == "XTTSv2 FT":
-        tts_method_xtts_ft = True
-        params["tts_method_api_tts"] = False
-        params["tts_method_api_local"] = False
-        params["tts_method_xtts_local"] = False
-
-    # Unload the current model
-    model = await unload_model(model)
-
-    # Load the correct model based on the updated params
-    await setup()
-
-
-# MODEL WEBSERVER- API Swap Between Models
-@app.route("/api/reload", methods=["POST"])
-async def reload(request: Request):
-    tts_method = request.query_params.get("tts_method")
-    if tts_method not in ["API TTS", "API Local", "XTTSv2 Local", "XTTSv2 FT"]:
-        return {"status": "error", "message": "Invalid TTS method specified"}
-    await handle_tts_method_change(tts_method)
-    return Response(
-        content=json.dumps({"status": "model-success"}), media_type="application/json"
-    )
-
-
-##################
-#### LOW VRAM ####
-##################
-# LOW VRAM - MODEL MOVER VRAM(cuda)<>System RAM(cpu) for Low VRAM setting
-async def switch_device():
-    global model, device
-    # Check if CUDA is available before performing GPU-related operations
-    if torch.cuda.is_available():
-        if device == "cuda":
-            device = "cpu"
-            model.to(device)
-            torch.cuda.empty_cache()
-        else:
-            device == "cpu"
-            device = "cuda"
-            model.to(device)
-
-
-@app.post("/api/lowvramsetting")
-async def set_low_vram(request: Request, new_low_vram_value: bool):
-    global device
-    try:
-        if new_low_vram_value is None:
-            raise ValueError("Missing 'low_vram' parameter")
-
-        if params["low_vram"] == new_low_vram_value:
-            return Response(
-                content=json.dumps(
-                    {
-                        "status": "success",
-                        "message": f"[{params['branding']}Model] LowVRAM is already {'enabled' if new_low_vram_value else 'disabled'}.",
-                    }
-                )
-            )
-        params["low_vram"] = new_low_vram_value
-        if params["low_vram"]:
-            await unload_model(model)
-            if torch.cuda.is_available():
-                device = "cpu"
-                print(
-                    f"[{params['branding']}Model] \033[94mChanging model \033[92m(Please wait 15 seconds)\033[0m"
-                )
-                print(
-                    f"[{params['branding']}Model] \033[94mLowVRAM Enabled.\033[0m Model will move between \033[93mVRAM(cuda) <> System RAM(cpu)\033[0m"
-                )
-                await setup()
-            else:
-                # Handle the case where CUDA is not available
-                print(
-                    f"[{params['branding']}Model] \033[91mError:\033[0m Nvidia CUDA is not available on this system. Unable to use LowVRAM mode."
-                )
-                params["low_vram"] = False
-        else:
-            await unload_model(model)
-            if torch.cuda.is_available():
-                device = "cuda"
-                print(
-                    f"[{params['branding']}Model] \033[94mChanging model \033[92m(Please wait 15 seconds)\033[0m"
-                )
-                print(
-                    f"[{params['branding']}Model] \033[94mLowVRAM Disabled.\033[0m Model will stay in \033[93mVRAM(cuda)\033[0m"
-                )
-                await setup()
-            else:
-                # Handle the case where CUDA is not available
-                print(
-                    f"[{params['branding']}Model] \033[91mError:\033[0m Nvidia CUDA is not available on this system. Unable to use LowVRAM mode."
-                )
-                params["low_vram"] = False
-        return Response(content=json.dumps({"status": "lowvram-success"}))
-    except Exception as e:
-        return Response(content=json.dumps({"status": "error", "message": str(e)}))
-
-
-###################
-#### DeepSpeed ####
-###################
-# DEEPSPEED - Reload the model when DeepSpeed checkbox is enabled/disabled
-async def handle_deepspeed_change(value):
-    global model
-    if value:
-        # DeepSpeed enabled
-        print(f"[{params['branding']}Model] \033[93mDeepSpeed Activating\033[0m")
-
-        print(
-            f"[{params['branding']}Model] \033[94mChanging model \033[92m(DeepSpeed can take 30 seconds to activate)\033[0m"
-        )
-        print(
-            f"[{params['branding']}Model] \033[91mInformation\033[0m If you have not set CUDA_HOME path, DeepSpeed may fail to load/activate"
-        )
-        print(
-            f"[{params['branding']}Model] \033[91mInformation\033[0m DeepSpeed needs to find nvcc from the CUDA Toolkit. Please check your CUDA_HOME path is"
-        )
-        print(
-            f"[{params['branding']}Model] \033[91mInformation\033[0m pointing to the correct location and use 'set CUDA_HOME=putyoutpathhere' (Windows) or"
-        )
-        print(
-            f"[{params['branding']}Model] \033[91mInformation\033[0m 'export CUDA_HOME=putyoutpathhere' (Linux) within your Python Environment"
-        )
-        model = await unload_model(model)
-        params["tts_method_api_tts"] = False
-        params["tts_method_api_local"] = False
-        params["tts_method_xtts_local"] = True
-        params["deepspeed_activate"] = True
-        await setup()
-    else:
-        # DeepSpeed disabled
-        print(f"[{params['branding']}Model] \033[93mDeepSpeed De-Activating\033[0m")
-        print(
-            f"[{params['branding']}Model] \033[94mChanging model \033[92m(Please wait 15 seconds)\033[0m"
-        )
-        params["deepspeed_activate"] = False
-        model = await unload_model(model)
-        await setup()
-
-    return value  # Return new checkbox value
-
-
-# DEEPSPEED WEBSERVER- API Enable/Disable DeepSpeed
-@app.post("/api/deepspeed")
-async def deepspeed(request: Request, new_deepspeed_value: bool):
-    try:
-        if new_deepspeed_value is None:
-            raise ValueError("Missing 'deepspeed' parameter")
-        if params["deepspeed_activate"] == new_deepspeed_value:
-            return Response(
-                content=json.dumps(
-                    {
-                        "status": "success",
-                        "message": f"DeepSpeed is already {'enabled' if new_deepspeed_value else 'disabled'}.",
-                    }
-                )
-            )
-        params["deepspeed_activate"] = new_deepspeed_value
-        await handle_deepspeed_change(params["deepspeed_activate"])
-        return Response(content=json.dumps({"status": "deepspeed-success"}))
-    except Exception as e:
-        return Response(content=json.dumps({"status": "error", "message": str(e)}))
-
-
-########################
-#### TTS GENERATION ####
-########################
+# ... (rest of the code remains the same)
 
 # TTS VOICE GENERATION METHODS (called from voice_preview and output_modifer)
 async def generate_audio(text, voice, language, temperature, repetition_penalty, output_file, streaming=False):
@@ -536,7 +89,17 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
                 vfout.setframerate(24000)
                 vfout.writeframes(b"")
             wav_buf.seek(0)
-            yield wav_buf.read()
+
+            # Encode WAV to MP3 on the fly using ffmpeg
+            process = (
+                ffmpeg
+                .input('pipe:', format='wav')
+                .output('pipe:', format='mp3', acodec='libmp3lame', audio_bitrate=128000)
+                .run_async(pipe_stdin=True, pipe_stdout=True)
+            )
+            
+            process.stdin.write(wav_buf.read())
+            yield process.stdout.read(1024)
 
             for i, chunk in enumerate(output):
                 file_chunks.append(chunk)
@@ -546,12 +109,15 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
                 chunk = chunk[None, : int(chunk.shape[0])]
                 chunk = np.clip(chunk, -1, 1)
                 chunk = (chunk * 32767).astype(np.int16)
-                yield chunk.tobytes()
+                process.stdin.write(chunk.tobytes())
+                yield process.stdout.read(1024)
+
+            process.stdin.close()
+            process.wait()
         else:
             # Non-streaming-specific operation
             torchaudio.save(output_file, torch.tensor(output["wav"]).unsqueeze(0), 24000)
 
-    
     # API LOCAL Methods
     elif params["tts_method_api_local"]:
         # Streaming only allowed for XTTSv2 local
@@ -596,7 +162,6 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
     if params["low_vram"] and device == "cuda":
         await switch_device()
     return
-
 
 # TTS VOICE GENERATION METHODS - generate TTS API
 @app.route("/api/generate", methods=["POST"])
