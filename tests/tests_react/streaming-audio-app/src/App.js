@@ -3,8 +3,8 @@ import axios from 'axios';
 import './App.css';
 
 const App = () => {
-  const audioRef = useRef(null);
-  const [audioInfo, setAudioInfo] = useState(null);
+  const videoRef = useRef(null);
+  const mediaSourceRef = useRef(null);
   const [totalResponseTime, setTotalResponseTime] = useState(null);
   const [totalCharacterCount, setTotalCharacterCount] = useState(null);
   const [serverUrl, setServerUrl] = useState('https://f4aacd6da9151.notebooksb.jarvislabs.net');
@@ -13,65 +13,60 @@ const App = () => {
 
   const fetchAudioChunks = async () => {
     const startTime = performance.now();
+
     const response = await axios.get(`${serverUrl.replace(/\/$/, '')}/api/tts-generate-streaming`, {
       params: {
         text: inputText,
         voice: 'female_01.wav',
         language: 'en',
-        output_file: 'output.wav',
       },
       responseType: 'arraybuffer',
     });
-  
-    const audioContext = new AudioContext();
-    
-    let isFirstChunk = true;
-    const processChunk = async (chunk) => {
-      try {
-        const audioBuffer = await audioContext.decodeAudioData(chunk);
+
+    const mediaSource = new MediaSource();
+    videoRef.current.src = URL.createObjectURL(mediaSource);
+    mediaSourceRef.current = mediaSource;
+
+    mediaSource.addEventListener('sourceopen', () => {
+      const sourceBuffer = mediaSource.addSourceBuffer('audio/mp4; codecs="mp4a.40.2"');
+
+      const onUpdateEnd = () => {
+        if (mediaSource.readyState === 'open') {
+          mediaSource.endOfStream();
+        }
+      };
+
+      sourceBuffer.addEventListener('updateend', onUpdateEnd);
+
+      let isFirstChunk = true;
+      let offset = 0;
+      const chunkSize = 4096;
+
+      const processChunk = () => {
+        if (offset >= response.data.byteLength) {
+          return;
+        }
+
         if (isFirstChunk) {
-          setAudioInfo({
-            sampleRate: audioContext.sampleRate,
-            numberOfChannels: audioBuffer.numberOfChannels,
-          });
-  
           const firstChunkTime = (performance.now() - startTime) / 1000;
           setFirstChunkReceivedAt(firstChunkTime.toFixed(3));
           isFirstChunk = false;
         }
-  
-        // Play the audioBuffer here
-        const source = audioContext.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(audioContext.destination);
-        source.start();
-        // You need to handle the end of playback to start the next chunk smoothly
-      } catch (error) {
-        console.error('Error decoding audio data:', error);
-      }
-    };
-  
-    let offset = 0;
-    const chunkSize = 4096;
-    const chunks = []; // Assuming you might want to manage chunks for sequential processing
-  
-    while (offset < response.data.byteLength) {
-      const chunk = response.data.slice(offset, offset + chunkSize);
-      chunks.push(chunk);
-      offset += chunkSize;
-    }
-  
-    for (const chunk of chunks) {
-      await processChunk(chunk);
-      // Wait for the chunk to finish playing or use a more sophisticated method to ensure smooth playback
-    }
-  
+
+        const chunk = response.data.slice(offset, offset + chunkSize);
+        offset += chunkSize;
+
+        sourceBuffer.appendBuffer(chunk);
+      };
+
+      sourceBuffer.addEventListener('updateend', processChunk);
+      processChunk();
+    });
+
     const endTime = performance.now();
     setTotalResponseTime((endTime - startTime) / 1000);
     setTotalCharacterCount(inputText.length);
   };
-  
-  
 
   const handleInputChange = (event) => {
     setInputText(event.target.value);
@@ -105,15 +100,8 @@ const App = () => {
         />
       </div>
       <button className="send-button" onClick={fetchAudioChunks}>Send Request</button>
-      <audio ref={audioRef} />
+      <video ref={videoRef} autoPlay />
       <div className="info-container">
-        {audioInfo && (
-          <div>
-            <h3>Audio Information:</h3>
-            <p>Sample Rate: {audioInfo.sampleRate} Hz</p>
-            <p>Number of Channels: {audioInfo.numberOfChannels}</p>
-          </div>
-        )}
         {firstChunkReceivedAt !== null && <p>First Chunk Received At: {firstChunkReceivedAt} seconds</p>}
         {totalCharacterCount !== null && <p>Total Character Count: {totalCharacterCount}</p>}
         {totalResponseTime !== null && <p>Total Response Time: {totalResponseTime} seconds</p>}

@@ -899,8 +899,14 @@ async def tts_generate_streaming(text: str, voice: str, language: str, output_fi
         return JSONResponse(content={"error": "An error occurred"}, status_code=500)
 
 @app.post("/api/tts-generate-streaming", response_class=StreamingResponse)
-async def tts_generate_streaming(request: Request, text: str = Form(...), voice: str = Form(...), language: str = Form(...)):
+async def tts_generate_streaming(request: Request):
     try:
+        # Get parameters from JSON body
+        data = await request.json()
+        text = data["text"]
+        voice = data["voice"]
+        language = data["language"]
+
         # Generate the audio using the existing generate_audio function
         output_file_path = this_dir / "outputs" / "temp_audio.wav"
         await generate_audio(text, voice, language, temperature, repetition_penalty, output_file_path, streaming=False)
@@ -941,7 +947,6 @@ async def tts_generate_streaming(request: Request, text: str = Form(...), voice:
 
     except Exception as e:
         return JSONResponse(content={"error": "An error occurred"}, status_code=500)
-
 ##############################
 #### Standard Generation ####
 ##############################
