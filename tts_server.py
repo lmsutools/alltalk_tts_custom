@@ -381,7 +381,7 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
         # Determine the correct inference function and add streaming specific argument if needed
         inference_func = model.inference_stream if streaming else model.inference
         if streaming:
-            common_args["stream_chunk_size"] = 8192 # Increase chunk size for MSE compatibility
+            common_args["stream_chunk_size"] = 10
 
         # Call the appropriate function
         output = inference_func(**common_args) 
@@ -389,16 +389,29 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
         # Process the output based on streaming or non-streaming
         if streaming:
             # Streaming-specific operations
-            for chunk in output:
+            file_chunks = []
+            wav_buf = io.BytesIO()
+            with wave.open(wav_buf, "wb") as vfout:
+                vfout.setnchannels(1)
+                vfout.setsampwidth(2)
+                vfout.setframerate(24000)
+                vfout.writeframes(b"")
+            wav_buf.seek(0)
+            yield wav_buf.read()
+
+            for i, chunk in enumerate(output):
+                file_chunks.append(chunk)
                 if isinstance(chunk, list):
                     chunk = torch.cat(chunk, dim=0)
-                chunk = chunk.squeeze().cpu().numpy()
+                chunk = chunk.clone().detach().cpu().numpy()
+                chunk = chunk[None, : int(chunk.shape[0])]
                 chunk = np.clip(chunk, -1, 1)
                 chunk = (chunk * 32767).astype(np.int16)
                 yield chunk.tobytes()
         else:
             # Non-streaming-specific operation
             torchaudio.save(output_file, torch.tensor(output["wav"]).unsqueeze(0), 24000)
+
     
     # API LOCAL Methods
     elif params["tts_method_api_local"]:
@@ -426,7 +439,7 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
         if streaming:
             raise ValueError("Streaming is only supported in XTTSv2 local")
 
-        print(f"[{params['branding']}TTSGen] Using API TTS") 
+        print(f"[{params['branding']}TTSGen] Using API TTS")
         model.tts_to_file(
             text=text,
             file_path=output_file,
@@ -436,7 +449,7 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
 
     # Print Generation time and settings
     generate_end_time = time.time()  # Record the end time to generate TTS
-    generate_elapsed_time = generate_end_time - generate_start_time 
+    generate_elapsed_time = generate_end_time - generate_start_time
     print(
         f"[{params['branding']}TTSGen] \033[93m{generate_elapsed_time:.2f} seconds. \033[94mLowVRAM: \033[33m{params['low_vram']} \033[94mDeepSpeed: \033[33m{params['deepspeed_activate']}\033[0m"
     )
@@ -444,6 +457,7 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
     if params["low_vram"] and device == "cuda":
         await switch_device()
     return
+
 
 # TTS VOICE GENERATION METHODS - generate TTS API
 @app.route("/api/generate", methods=["POST"])
@@ -474,10 +488,21 @@ async def generate(request: Request):
 ##############################
 
 @app.get("/api/tts-generate-streaming", response_class=StreamingResponse)
-async def tts_generate_streaming(text: str, voice: str, language: str):
+async def tts_generate_streaming(text: str, voice: str, language: str, output_file: str):
     try:
-        stream = await generate_audio(text, voice, language, temperature, repetition_penalty, None, streaming=True)
-        return StreamingResponse(stream, media_type="audio/wav", headers={"Transfer-Encoding": "chunked"})
+        output_file_path = this_dir / "outputs" / output_file
+        stream = await generate_audio(text, voice, language, temperature, repetition_penalty, output_file_path, streaming=True)
+        return StreamingResponse(stream, media_type="audio/wav")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return JSONResponse(content={"error": "An error occurred"}, status_code=500)
+
+@app.post("/api/tts-generate-streaming", response_class=JSONResponse)
+async def tts_generate_streaming(request: Request, text: str = Form(...), voice: str = Form(...), language: str = Form(...), output_file: str = Form(...)):
+    try:
+        output_file_path = this_dir / "outputs" / output_file
+        await generate_audio(text, voice, language, temperature, repetition_penalty, output_file_path, streaming=False)
+        return JSONResponse(content={"output_file_path": str(output_file)}, status_code=200)
     except Exception as e:
         print(f"An error occurred: {e}")
         return JSONResponse(content={"error": "An error occurred"}, status_code=500)

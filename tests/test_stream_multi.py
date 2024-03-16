@@ -45,7 +45,7 @@ def send_requests(args):
         t = threading.Thread(target=tts, args=(args.text, args.voice, args.language, args.server_url, args.output_file, i + 1, first_chunk_times))
         threads.append(t)
         t.start()
-        time.sleep(1.5)  # Ramp-up of 1 second between each request
+        time.sleep(1)  # Ramp-up of 1 second between each request
 
     for t in threads:
         t.join()
@@ -84,7 +84,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--server_url",
-        default="https://74767ceced371.notebooksll.jarvislabs.net",
+        default="https://f4aacd6da9151.notebooksb.jarvislabs.net",
     )
     parser.add_argument(
         "-r", "--requests",

@@ -3,7 +3,7 @@ import axios from 'axios';
 import './App.css';
 
 const App = () => {
-  const videoRef = useRef(null);
+  const audioRef = useRef(null);
   const mediaSourceRef = useRef(null);
   const [totalResponseTime, setTotalResponseTime] = useState(null);
   const [totalCharacterCount, setTotalCharacterCount] = useState(null);
@@ -13,21 +13,21 @@ const App = () => {
 
   const fetchAudioChunks = async () => {
     const startTime = performance.now();
-  
-    const response = await axios.post(`${serverUrl.replace(/\/$/, '')}/api/tts-generate-streaming`, {
-      text: inputText,
-      voice: 'female_01.wav',
-      language: 'en',
-    }, {
-      responseType: 'arraybuffer',
+    const response = await axios.get(`${serverUrl.replace(/\/$/, '')}/api/tts-generate-streaming`, {
+      params: {
+        text: inputText,
+        voice: 'female_01.wav',
+        language: 'en',
+      },
+      responseType: 'stream',
     });
 
     const mediaSource = new MediaSource();
-    videoRef.current.src = URL.createObjectURL(mediaSource);
+    audioRef.current.src = URL.createObjectURL(mediaSource);
     mediaSourceRef.current = mediaSource;
 
     mediaSource.addEventListener('sourceopen', () => {
-      const sourceBuffer = mediaSource.addSourceBuffer('audio/mp4; codecs="mp4a.40.2"');
+      const sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg');
 
       const onUpdateEnd = () => {
         if (mediaSource.readyState === 'open') {
@@ -38,33 +38,23 @@ const App = () => {
       sourceBuffer.addEventListener('updateend', onUpdateEnd);
 
       let isFirstChunk = true;
-      let offset = 0;
-      const chunkSize = 4096;
 
-      const processChunk = () => {
-        if (offset >= response.data.byteLength) {
-          return;
-        }
-
+      response.data.on('data', (chunk) => {
         if (isFirstChunk) {
           const firstChunkTime = (performance.now() - startTime) / 1000;
           setFirstChunkReceivedAt(firstChunkTime.toFixed(3));
           isFirstChunk = false;
         }
 
-        const chunk = response.data.slice(offset, offset + chunkSize);
-        offset += chunkSize;
+        sourceBuffer.appendBuffer(new Uint8Array(chunk));
+      });
 
-        sourceBuffer.appendBuffer(chunk);
-      };
-
-      sourceBuffer.addEventListener('updateend', processChunk);
-      processChunk();
+      response.data.on('end', () => {
+        const endTime = performance.now();
+        setTotalResponseTime((endTime - startTime) / 1000);
+        setTotalCharacterCount(inputText.length);
+      });
     });
-
-    const endTime = performance.now();
-    setTotalResponseTime((endTime - startTime) / 1000);
-    setTotalCharacterCount(inputText.length);
   };
 
   const handleInputChange = (event) => {
@@ -80,26 +70,14 @@ const App = () => {
       <h1>Text-to-Speech Streaming App</h1>
       <div className="input-group">
         <label htmlFor="serverUrl">Server URL:</label>
-        <input
-          type="text"
-          id="serverUrl"
-          value={serverUrl}
-          onChange={handleServerUrlChange}
-          className="input-field"
-        />
+        <input type="text" id="serverUrl" value={serverUrl} onChange={handleServerUrlChange} className="input-field" />
       </div>
       <div className="input-group">
         <label htmlFor="inputText">Input Text:</label>
-        <textarea
-          id="inputText"
-          value={inputText}
-          onChange={handleInputChange}
-          rows={4}
-          className="input-field"
-        />
+        <textarea id="inputText" value={inputText} onChange={handleInputChange} rows={4} className="input-field" />
       </div>
       <button className="send-button" onClick={fetchAudioChunks}>Send Request</button>
-      <video ref={videoRef} autoPlay />
+      <audio ref={audioRef} autoPlay />
       <div className="info-container">
         {firstChunkReceivedAt !== null && <p>First Chunk Received At: {firstChunkReceivedAt} seconds</p>}
         {totalCharacterCount !== null && <p>Total Character Count: {totalCharacterCount}</p>}
