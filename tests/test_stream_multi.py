@@ -45,7 +45,7 @@ def send_requests(args):
         t = threading.Thread(target=tts, args=(args.text, args.voice, args.language, args.server_url, args.output_file, i + 1, first_chunk_times))
         threads.append(t)
         t.start()
-        time.sleep(0.5)  # Ramp-up of 1 second between each request
+        time.sleep(1.5)  # Ramp-up of 1 second between each request
 
     for t in threads:
         t.join()
