@@ -721,30 +721,6 @@ async def update_settings(
     return RedirectResponse(url="/settings", status_code=303)
 
 
-##################################
-#### SETTINGS PAGE DEMO VOICE ####
-##################################
-
-@app.get("/tts-demo-request", response_class=StreamingResponse)
-async def tts_demo_request_streaming(text: str, voice: str, language: str, output_file: str):
-    try:
-        output_file_path = this_dir / "outputs" / output_file
-        stream = await generate_audio(text, voice, language, temperature, repetition_penalty, output_file_path, streaming=True)
-        return StreamingResponse(stream, media_type="audio/wav")
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return JSONResponse(content={"error": "An error occurred"}, status_code=500)
-
-@app.post("/tts-demo-request", response_class=JSONResponse)
-async def tts_demo_request(request: Request, text: str = Form(...), voice: str = Form(...), language: str = Form(...), output_file: str = Form(...)):
-    try:
-        output_file_path = this_dir / "outputs" / output_file
-        await generate_audio(text, voice, language, temperature, repetition_penalty, output_file_path, streaming=False)
-        return JSONResponse(content={"output_file_path": str(output_file)}, status_code=200)
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return JSONResponse(content={"error": "An error occurred"}, status_code=500)
-
 
 #####################
 #### Audio feeds ####
@@ -773,51 +749,6 @@ async def get_audio(filename: str):
 
     return response
 
-#########################
-#### VOICES LIST API ####
-#########################
-# Define the new endpoint
-@app.get("/api/voices")
-async def get_voices():
-    wav_files = list_files(this_dir / "voices")
-    return {"voices": wav_files}
-
-###########################
-#### PREVIEW VOICE API ####
-###########################
-@app.post("/api/previewvoice/", response_class=JSONResponse)
-async def preview_voice(request: Request, voice: str = Form(...)):
-    try:
-        # Hardcoded settings
-        language = "en"
-        output_file_name = "api_preview_voice"
-
-        # Clean the voice filename for inclusion in the text
-        clean_voice_filename = re.sub(r'\.wav$', '', voice.replace(' ', '_'))
-        clean_voice_filename = re.sub(r'[^a-zA-Z0-9]', ' ', clean_voice_filename)
-        
-        # Generate the audio
-        text = f"Hello, this is a preview of voice {clean_voice_filename}."
-
-        # Generate the audio
-        output_file_path = this_dir / "outputs" / f"{output_file_name}.wav"
-        await generate_audio(text, voice, language, temperature, repetition_penalty, output_file_path, streaming=False)
-
-        # Generate the URL
-        output_file_url = f'http://{params["ip_address"]}:{params["port_number"]}/audio/{output_file_name}.wav'
-
-        # Return the response with both local file path and URL
-        return JSONResponse(
-            content={
-                "status": "generate-success",
-                "output_file_path": str(output_file_path),
-                "output_file_url": str(output_file_url),
-            },
-            status_code=200,
-        )
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return JSONResponse(content={"error": "An error occurred"}, status_code=500)
 
 ########################
 #### GENERATION API ####

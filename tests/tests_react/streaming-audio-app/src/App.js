@@ -13,13 +13,12 @@ const App = () => {
 
   const fetchAudioChunks = async () => {
     const startTime = performance.now();
-
-    const response = await axios.get(`${serverUrl.replace(/\/$/, '')}/api/tts-generate-streaming`, {
-      params: {
-        text: inputText,
-        voice: 'female_01.wav',
-        language: 'en',
-      },
+  
+    const response = await axios.post(`${serverUrl.replace(/\/$/, '')}/api/tts-generate-streaming`, {
+      text: inputText,
+      voice: 'female_01.wav',
+      language: 'en',
+    }, {
       responseType: 'arraybuffer',
     });
 
