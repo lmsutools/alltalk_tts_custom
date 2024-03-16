@@ -483,6 +483,32 @@ async def generate(request: Request):
         return JSONResponse(content={"status": "error", "message": str(e)})
 
 
+##############################
+#### Streaming Generation ####
+##############################
+
+@app.get("/api/tts-generate-streaming", response_class=StreamingResponse)
+async def tts_generate_streaming(text: str, voice: str, language: str, output_file: str):
+    try:
+        output_file_path = this_dir / "outputs" / output_file
+        stream = await generate_audio(text, voice, language, temperature, repetition_penalty, output_file_path, streaming=True)
+        return StreamingResponse(stream, media_type="audio/wav")
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return JSONResponse(content={"error": "An error occurred"}, status_code=500)
+
+@app.post("/api/tts-generate-streaming", response_class=JSONResponse)
+async def tts_generate_streaming(request: Request, text: str = Form(...), voice: str = Form(...), language: str = Form(...), output_file: str = Form(...)):
+    try:
+        output_file_path = this_dir / "outputs" / output_file
+        await generate_audio(text, voice, language, temperature, repetition_penalty, output_file_path, streaming=False)
+        return JSONResponse(content={"output_file_path": str(output_file)}, status_code=200)
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return JSONResponse(content={"error": "An error occurred"}, status_code=500)
+
+
+
 ###################################################
 #### POPULATE FILES LIST FROM VOICES DIRECTORY ####
 ###################################################
@@ -621,31 +647,6 @@ import numpy as np
 import soundfile as sf
 import sys
 import hashlib
-
-##############################
-#### Streaming Generation ####
-##############################
-
-@app.get("/api/tts-generate-streaming", response_class=StreamingResponse)
-async def tts_generate_streaming(text: str, voice: str, language: str, output_file: str):
-    try:
-        output_file_path = this_dir / "outputs" / output_file
-        stream = await generate_audio(text, voice, language, temperature, repetition_penalty, output_file_path, streaming=True)
-        return StreamingResponse(stream, media_type="audio/wav")
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return JSONResponse(content={"error": "An error occurred"}, status_code=500)
-
-@app.post("/api/tts-generate-streaming", response_class=JSONResponse)
-async def tts_generate_streaming(request: Request, text: str = Form(...), voice: str = Form(...), language: str = Form(...), output_file: str = Form(...)):
-    try:
-        output_file_path = this_dir / "outputs" / output_file
-        await generate_audio(text, voice, language, temperature, repetition_penalty, output_file_path, streaming=False)
-        return JSONResponse(content={"output_file_path": str(output_file)}, status_code=200)
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return JSONResponse(content={"error": "An error occurred"}, status_code=500)
-
 
 
 
