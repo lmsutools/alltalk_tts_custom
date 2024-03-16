@@ -9,10 +9,6 @@ from TTS.tts.configs.xtts_config import XttsConfig
 from TTS.tts.models.xtts import Xtts
 import io
 import wave
-import io
-import subprocess
-from fastapi import FastAPI, Request, Form
-from fastapi.responses import StreamingResponse
 
 ##########################
 #### Webserver Imports####
@@ -482,64 +478,14 @@ async def deepspeed(request: Request, new_deepspeed_value: bool):
 ########################
 
 # TTS VOICE GENERATION METHODS (called from voice_preview and output_modifer)
-async def generate_audio(text, voice, language, temperature, repetition_penalty, streaming=False):
-    global model
-    if params["low_vram"] and device == "cpu":
-        await switch_device()
-    generate_start_time = time.time()  # Record the start time of generating TTS
-    
-    # XTTSv2 LOCAL & Xttsv2 FT Method
-    if params["tts_method_xtts_local"] or tts_method_xtts_ft:
-        print(f"[{params['branding']}TTSGen] {text}")
-        gpt_cond_latent, speaker_embedding = model.get_conditioning_latents(
-            audio_path=[f"{this_dir}/voices/{voice}"],
-            gpt_cond_len=model.config.gpt_cond_len,
-            max_ref_length=model.config.max_ref_len,
-            sound_norm_refs=model.config.sound_norm_refs,
-        )
-
-        # Common arguments for both functions
-        common_args = {
-            "text": text,
-            "language": language,
-            "gpt_cond_latent": gpt_cond_latent,
-            "speaker_embedding": speaker_embedding,
-            "temperature": float(temperature),
-            "length_penalty": float(model.config.length_penalty),
-            "repetition_penalty": float(repetition_penalty),
-            "top_k": int(model.config.top_k),
-            "top_p": float(model.config.top_p),
-            "enable_text_splitting": True
-        }
-
-        # Determine the correct inference function and add streaming specific argument if needed
-        inference_func = model.inference
-
-        # Call the appropriate function
-        output = inference_func(**common_args)
-
-        # Convert the output to raw audio data
-        audio_data = (output["wav"] * 32767).astype(np.int16).tobytes()
-
-    # API LOCAL Methods
-    elif params["tts_method_api_local"]:
-        raise NotImplementedError("Streaming is not supported for API Local method")
-
-    # API TTS
-    elif params["tts_method_api_tts"]:
-        raise NotImplementedError("Streaming is not supported for API TTS method")
-
-    # Print Generation time and settings
-    generate_end_time = time.time()  # Record the end time to generate TTS
-    generate_elapsed_time = generate_end_time - generate_start_time
-    print(
-        f"[{params['branding']}TTSGen] \033[93m{generate_elapsed_time:.2f} seconds. \033[94mLowVRAM: \033[33m{params['low_vram']} \033[94mDeepSpeed: \033[33m{params['deepspeed_activate']}\033[0m"
-    )
-    # Move model back to cpu system ram if needed.
-    if params["low_vram"] and device == "cuda":
-        await switch_device()
-
-    return audio_data, model.config.audio.sample_rate
+async def generate_audio(text, voice, language, temperature, repetition_penalty, output_file, streaming=False):
+    # Get the async generator from the internal function
+    response = generate_audio_internal(text, voice, language, temperature, repetition_penalty, output_file, streaming)
+    # If streaming, then return the generator as-is, otherwise just exhaust it and return
+    if streaming:
+        return response
+    async for _ in response:
+        pass
     
 async def generate_audio_internal(text, voice, language, temperature, repetition_penalty, output_file, streaming):
     global model
@@ -898,55 +844,16 @@ async def tts_generate_streaming(text: str, voice: str, language: str, output_fi
         print(f"An error occurred: {e}")
         return JSONResponse(content={"error": "An error occurred"}, status_code=500)
 
-@app.post("/api/tts-generate-streaming", response_class=StreamingResponse)
-async def tts_generate_streaming(request: Request):
+@app.post("/api/tts-generate-streaming", response_class=JSONResponse)
+async def tts_generate_streaming(request: Request, text: str = Form(...), voice: str = Form(...), language: str = Form(...), output_file: str = Form(...)):
     try:
-        # Get parameters from JSON body
-        data = await request.json()
-        text = data["text"]
-        voice = data["voice"]
-        language = data["language"]
-
-        # Generate the audio using the existing generate_audio function
-        output_file_path = this_dir / "outputs" / "temp_audio.wav"
+        output_file_path = this_dir / "outputs" / output_file
         await generate_audio(text, voice, language, temperature, repetition_penalty, output_file_path, streaming=False)
-
-        # Create a subprocess to use FFmpeg for converting WAV to AAC in an MP4 container
-        ffmpeg_command = [
-            'ffmpeg', '-y',                                 # Overwrite output files without asking
-            '-i', str(output_file_path),                    # Input WAV file
-            '-c:a', 'aac',                                  # AAC audio codec
-            '-b:a', '128k',                                 # Bitrate of the audio
-            '-f', 'mp4',                                    # Output format
-            '-movflags', 'frag_keyframe+empty_moov',        # Fragment on each keyframe and no moov box
-            'pipe:1'                                        # Output to stdout
-        ]
-
-        # Start FFmpeg process
-        process = subprocess.Popen(ffmpeg_command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        
-        # Generator to stream the MP4 data
-        def iterfile():
-            while True:
-                data = process.stdout.read(4096)
-                if not data:
-                    break
-                yield data
-
-        # Wait for the process to finish
-        _, stderr = process.communicate()
-
-        if process.returncode != 0:
-            raise Exception(f"FFmpeg error: {stderr.decode()}")
-
-        # Delete the temporary WAV file
-        output_file_path.unlink()
-
-        # Return the streaming response
-        return StreamingResponse(iterfile(), media_type="video/mp4")
-
+        return JSONResponse(content={"output_file_path": str(output_file)}, status_code=200)
     except Exception as e:
+        print(f"An error occurred: {e}")
         return JSONResponse(content={"error": "An error occurred"}, status_code=500)
+
 ##############################
 #### Standard Generation ####
 ##############################
@@ -1274,5 +1181,9 @@ port_parameter = int(params["port_number"])
 
 if __name__ == "__main__":
     import uvicorn
+    from uvicorn.config import LOGGING_CONFIG
+
+    num_workers = LOGGING_CONFIG["formatters"]["default"]["use_colors"]
+    print(f"[{params['branding']}Startup] \033[94mStarting Uvicorn with {num_workers} worker(s)\033[0m")
 
     uvicorn.run(app, host=host_parameter, port=port_parameter, log_level="warning")
