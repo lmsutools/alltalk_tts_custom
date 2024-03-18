@@ -353,7 +353,7 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
     if params["low_vram"] and device == "cpu":
         await switch_device()
     generate_start_time = time.time()  # Record the start time of generating TTS
-    
+
     # XTTSv2 LOCAL & Xttsv2 FT Method
     if params["tts_method_xtts_local"] or tts_method_xtts_ft:
         print(f"[{params['branding']}TTSGen] {text}")
@@ -383,8 +383,16 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
         if streaming:
             common_args["stream_chunk_size"] = 20
 
-        # Call the appropriate function
-        output = inference_func(**common_args) 
+        # Call the appropriate function with error handling
+        try:
+            output = inference_func(**common_args)
+        except torch.cuda.OutOfMemoryError as e:
+            torch.cuda.empty_cache()
+            print(f"[{params['branding']}TTSGen] \033[91mError:\033[0m {e}")
+            print(f"[{params['branding']}TTSGen] \033[91mClearing GPU memory and retrying...\033[0m")
+            # Retry the inference with reduced batch size
+            common_args["stream_chunk_size"] = 10
+            output = inference_func(**common_args)
 
         # Process the output based on streaming or non-streaming
         if streaming:
@@ -412,7 +420,6 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
             # Non-streaming-specific operation
             torchaudio.save(output_file, torch.tensor(output["wav"]).unsqueeze(0), 24000)
 
-    
     # API LOCAL Methods
     elif params["tts_method_api_local"]:
         # Streaming only allowed for XTTSv2 local
@@ -457,7 +464,6 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
     if params["low_vram"] and device == "cuda":
         await switch_device()
     return
-
 
 # TTS VOICE GENERATION METHODS - generate TTS API
 @app.route("/api/generate", methods=["POST"])
