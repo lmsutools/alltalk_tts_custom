@@ -9,6 +9,7 @@ from TTS.tts.configs.xtts_config import XttsConfig
 from TTS.tts.models.xtts import Xtts
 import io
 import wave
+import gc 
 
 ##########################
 #### Webserver Imports####
@@ -348,105 +349,124 @@ async def generate_audio(text, voice, language, temperature, repetition_penalty,
     async for _ in response:
         pass
     
+import gc
+import torch
+
 async def generate_audio_internal(text, voice, language, temperature, repetition_penalty, output_file, streaming):
     global model
     if params["low_vram"] and device == "cpu":
         await switch_device()
     generate_start_time = time.time()  # Record the start time of generating TTS
     
-    # XTTSv2 LOCAL & Xttsv2 FT Method
-    if params["tts_method_xtts_local"] or tts_method_xtts_ft:
-        print(f"[{params['branding']}TTSGen] {text}")
-        gpt_cond_latent, speaker_embedding = model.get_conditioning_latents(
-            audio_path=[f"{this_dir}/voices/{voice}"],
-            gpt_cond_len=model.config.gpt_cond_len,
-            max_ref_length=model.config.max_ref_len,
-            sound_norm_refs=model.config.sound_norm_refs,
-        )
+    try:
+        # XTTSv2 LOCAL & Xttsv2 FT Method
+        if params["tts_method_xtts_local"] or tts_method_xtts_ft:
+            print(f"[{params['branding']}TTSGen] {text}")
+            gpt_cond_latent, speaker_embedding = model.get_conditioning_latents(
+                audio_path=[f"{this_dir}/voices/{voice}"],
+                gpt_cond_len=model.config.gpt_cond_len,
+                max_ref_length=model.config.max_ref_len,
+                sound_norm_refs=model.config.sound_norm_refs,
+            )
 
-        # Common arguments for both functions
-        common_args = {
-            "text": text,
-            "language": language,
-            "gpt_cond_latent": gpt_cond_latent,
-            "speaker_embedding": speaker_embedding,
-            "temperature": float(temperature),
-            "length_penalty": float(model.config.length_penalty),
-            "repetition_penalty": float(repetition_penalty),
-            "top_k": int(model.config.top_k),
-            "top_p": float(model.config.top_p),
-            "enable_text_splitting": True
-        }
+            # Common arguments for both functions
+            common_args = {
+                "text": text,
+                "language": language,
+                "gpt_cond_latent": gpt_cond_latent,
+                "speaker_embedding": speaker_embedding,
+                "temperature": float(temperature),
+                "length_penalty": float(model.config.length_penalty),
+                "repetition_penalty": float(repetition_penalty),
+                "top_k": int(model.config.top_k),
+                "top_p": float(model.config.top_p),
+                "enable_text_splitting": True
+            }
 
-        # Determine the correct inference function and add streaming specific argument if needed
-        inference_func = model.inference_stream if streaming else model.inference
-        if streaming:
-            stream_chunk_size = int(os.environ.get("STREAM_CHUNK_SIZE", 20))
-            common_args["stream_chunk_size"] = stream_chunk_size
+            # Determine the correct inference function and add streaming specific argument if needed
+            inference_func = model.inference_stream if streaming else model.inference
+            if streaming:
+                stream_chunk_size = int(os.environ.get("STREAM_CHUNK_SIZE", 20))
+                common_args["stream_chunk_size"] = stream_chunk_size
 
-        # Call the appropriate function
-        output = inference_func(**common_args) 
+            # Call the appropriate function
+            output = inference_func(**common_args) 
 
-        # Process the output based on streaming or non-streaming
-        if streaming:
-            # Streaming-specific operations
-            file_chunks = []
-            wav_buf = io.BytesIO()
-            with wave.open(wav_buf, "wb") as vfout:
-                vfout.setnchannels(1)
-                vfout.setsampwidth(2)
-                vfout.setframerate(24000)
-                vfout.writeframes(b"")
-            wav_buf.seek(0)
-            yield wav_buf.read()
+            # Process the output based on streaming or non-streaming
+            if streaming:
+                # Streaming-specific operations
+                file_chunks = []
+                wav_buf = io.BytesIO()
+                with wave.open(wav_buf, "wb") as vfout:
+                    vfout.setnchannels(1)
+                    vfout.setsampwidth(2)
+                    vfout.setframerate(24000)
+                    vfout.writeframes(b"")
+                wav_buf.seek(0)
+                yield wav_buf.read()
 
-            for i, chunk in enumerate(output):
-                file_chunks.append(chunk)
-                if isinstance(chunk, list):
-                    chunk = torch.cat(chunk, dim=0)
-                chunk = chunk.clone().detach().cpu().numpy()
-                chunk = chunk[None, : int(chunk.shape[0])]
-                chunk = np.clip(chunk, -1, 1)
-                chunk = (chunk * 32767).astype(np.int16)
-                yield chunk.tobytes()
-        else:
-            # Non-streaming-specific operation
-            torchaudio.save(output_file, torch.tensor(output["wav"]).unsqueeze(0), 24000)
+                for i, chunk in enumerate(output):
+                    file_chunks.append(chunk)
+                    if isinstance(chunk, list):
+                        chunk = torch.cat(chunk, dim=0)
+                    chunk = chunk.clone().detach().cpu().numpy()
+                    chunk = chunk[None, : int(chunk.shape[0])]
+                    chunk = np.clip(chunk, -1, 1)
+                    chunk = (chunk * 32767).astype(np.int16)
+                    yield chunk.tobytes()
+            else:
+                # Non-streaming-specific operation
+                torchaudio.save(output_file, torch.tensor(output["wav"]).unsqueeze(0), 24000)
 
-    
-    # API LOCAL Methods
-    elif params["tts_method_api_local"]:
-        # Streaming only allowed for XTTSv2 local
-        if streaming:
-            raise ValueError("Streaming is only supported in XTTSv2 local")
+        
+        # API LOCAL Methods
+        elif params["tts_method_api_local"]:
+            # Streaming only allowed for XTTSv2 local
+            if streaming:
+                raise ValueError("Streaming is only supported in XTTSv2 local")
 
-        # Set the correct output path (different from the if statement)
-        print(f"[{params['branding']}TTSGen] Using API Local")
-        model.tts_to_file(
-            text=text,
-            file_path=output_file,
-            speaker_wav=[f"{this_dir}/voices/{voice}"],
-            language=language,
-            temperature=temperature,
-            length_penalty=model.config.length_penalty,
-            repetition_penalty=repetition_penalty,
-            top_k=model.config.top_k,
-            top_p=model.config.top_p,
-        )
+            # Set the correct output path (different from the if statement)
+            print(f"[{params['branding']}TTSGen] Using API Local")
+            model.tts_to_file(
+                text=text,
+                file_path=output_file,
+                speaker_wav=[f"{this_dir}/voices/{voice}"],
+                language=language,
+                temperature=temperature,
+                length_penalty=model.config.length_penalty,
+                repetition_penalty=repetition_penalty,
+                top_k=model.config.top_k,
+                top_p=model.config.top_p,
+            )
 
-    # API TTS
-    elif params["tts_method_api_tts"]:
-        # Streaming only allowed for XTTSv2 local
-        if streaming:
-            raise ValueError("Streaming is only supported in XTTSv2 local")
+        # API TTS
+        elif params["tts_method_api_tts"]:
+            # Streaming only allowed for XTTSv2 local
+            if streaming:
+                raise ValueError("Streaming is only supported in XTTSv2 local")
 
-        print(f"[{params['branding']}TTSGen] Using API TTS")
-        model.tts_to_file(
-            text=text,
-            file_path=output_file,
-            speaker_wav=[f"{this_dir}/voices/{voice}"],
-            language=language,
-        )
+            print(f"[{params['branding']}TTSGen] Using API TTS")
+            model.tts_to_file(
+                text=text,
+                file_path=output_file,
+                speaker_wav=[f"{this_dir}/voices/{voice}"],
+                language=language,
+            )
+
+    except Exception as e:
+        print(f"An error occurred during audio generation: {str(e)}")
+        raise
+
+    finally:
+        # Clear the memory used by the process
+        if params["tts_method_xtts_local"] or tts_method_xtts_ft:
+            del gpt_cond_latent
+            del speaker_embedding
+            del common_args
+            del output
+
+        gc.collect()
+        torch.cuda.empty_cache()
 
     # Print Generation time and settings
     generate_end_time = time.time()  # Record the end time to generate TTS
@@ -458,7 +478,6 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
     if params["low_vram"] and device == "cuda":
         await switch_device()
     return
-
 
 # TTS VOICE GENERATION METHODS - generate TTS API
 @app.route("/api/generate", methods=["POST"])
