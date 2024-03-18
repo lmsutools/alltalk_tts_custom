@@ -381,7 +381,8 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
         # Determine the correct inference function and add streaming specific argument if needed
         inference_func = model.inference_stream if streaming else model.inference
         if streaming:
-            common_args["stream_chunk_size"] = 10
+            stream_chunk_size = int(os.environ.get("STREAM_CHUNK_SIZE", 20))
+            common_args["stream_chunk_size"] = stream_chunk_size
 
         # Call the appropriate function
         output = inference_func(**common_args) 
