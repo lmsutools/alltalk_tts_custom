@@ -1,3 +1,4 @@
+#<test_stream_multi.py> 
 import argparse
 import shutil
 import sys
@@ -5,6 +6,14 @@ import time
 from typing import Iterator
 import requests
 import threading
+from dotenv import load_dotenv
+import os
+
+# Load environment variables from .env file
+load_dotenv()
+
+# Access the server URL from the environment variable
+server_url = os.getenv("SERVER_URL")
 
 def is_installed(lib_name: str) -> bool:
     lib = shutil.which(lib_name)
@@ -88,9 +97,10 @@ if __name__ == "__main__":
         default="female_01.wav",
         help="Voice to use for TTS"
     )
+    # Use the server_url variable in your code
     parser.add_argument(
         "--server_url",
-        default="https://a4e03765a8f31.notebooksc.jarvislabs.net",
+        default=server_url,
     )
     parser.add_argument(
         "-r", "--requests",

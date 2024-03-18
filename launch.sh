@@ -4,7 +4,7 @@
 NUM_WORKERS=1
 STREAM_CHUNK_SIZE=20
 
-while getopts ":r:c:" opt; do
+while getopts ":w:c:" opt; do
   case $opt in
     r) NUM_WORKERS="$OPTARG"
     ;;

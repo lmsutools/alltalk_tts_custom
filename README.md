@@ -1,3 +1,51 @@
+# /.launch arguments
+  '-w' for number of workers - 1 worker is default.
+  '-c' for number of chunks on the streaming mode. The lower the fastest, but could have lower quality. 20 is default.
+
+  Example: 
+```
+./launch.sh -r 5 -c 15
+```
+# Server Auto Installer Script
+
+```
+#!/bin/bash
+
+set -e
+set -x
+
+# Change the directory to /root at the start of the script
+cd /root
+
+# Redirect all output to the log file
+exec >> /root/installation_log.txt 2>&1
+
+# Clone the project repository
+git clone https://github.com/lmsutools/alltalk_tts_custom
+cd alltalk_tts_custom
+
+# Execute model download in the background
+python alltalk_tts_custom/modeldownload.py &
+
+# Store the background process ID
+download_pid=$1
+
+pip install -r requirements_nvidia.txt
+
+# Utility
+apt-get update
+apt-get install -y nvtop
+
+chmod +x ./launch.sh
+
+# Wait for the model download to complete
+wait $download_pid
+
+# Argument 5 is for 5 workers, while on tests, I'll launch it manually.
+# ./launch.sh 5
+```
+
+
 # AllTalk TTS
 AllTalk is an updated version of the Coqui_tts extension for Text Generation web UI. Features include:
 
