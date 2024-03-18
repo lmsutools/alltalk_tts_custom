@@ -19,10 +19,6 @@ def save(audio: bytes, filename: str) -> None:
     with open(filename, "wb") as f:
         f.write(audio)
 
-def get_audio_info(filename: str) -> dict:
-    cmd = ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", filename]
-    output = subprocess.check_output(cmd).decode("utf-8")
-    return json.loads(output)
 
 def stream_ffplay(audio_stream, output_file, save=True):
     if not save:
@@ -40,10 +36,10 @@ def stream_ffplay(audio_stream, output_file, save=True):
                 if not first_chunk_received:
                     temp_file.write(chunk)
                     temp_file.flush()
-                    audio_info = get_audio_info(temp_file.name)
+                
                     print("Audio Information (First Chunk):")
-                    print(f"  Sample Rate: {audio_info['streams'][0]['sample_rate']} Hz")
-                    print(f"  Codec: {audio_info['streams'][0]['codec_name']}")
+                  
+                 
                     first_chunk_received = True
 
     # close on finish

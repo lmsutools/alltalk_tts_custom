@@ -9,7 +9,7 @@ from TTS.tts.configs.xtts_config import XttsConfig
 from TTS.tts.models.xtts import Xtts
 import io
 import wave
-from io import BytesIO
+
 ##########################
 #### Webserver Imports####
 ##########################
@@ -389,34 +389,30 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
         # Process the output based on streaming or non-streaming
         if streaming:
             # Streaming-specific operations
-            wav_buffer = io.BytesIO()
-            wav_writer = wave.open(wav_buffer, 'wb')
-            wav_writer.setnchannels(1)
-            wav_writer.setsampwidth(2)
-            wav_writer.setframerate(24000)
+            file_chunks = []
+            wav_buf = io.BytesIO()
+            with wave.open(wav_buf, "wb") as vfout:
+                vfout.setnchannels(1)
+                vfout.setsampwidth(2)
+                vfout.setframerate(24000)
+                vfout.writeframes(b"")
+            wav_buf.seek(0)
+            yield wav_buf.read()
 
-            for chunk in output:
+            for i, chunk in enumerate(output):
+                file_chunks.append(chunk)
                 if isinstance(chunk, list):
                     chunk = torch.cat(chunk, dim=0)
                 chunk = chunk.clone().detach().cpu().numpy()
                 chunk = chunk[None, : int(chunk.shape[0])]
                 chunk = np.clip(chunk, -1, 1)
                 chunk = (chunk * 32767).astype(np.int16)
-                wav_writer.writeframes(chunk.tobytes())
                 yield chunk.tobytes()
-
-            wav_writer.close()
-            wav_buffer.seek(0)
-            with open(output_file, 'wb') as f:
-                f.write(wav_buffer.read())
         else:
             # Non-streaming-specific operation
-            wav_buffer = io.BytesIO()
-            torchaudio.save(wav_buffer, torch.tensor(output["wav"]).unsqueeze(0), 24000, format='wav')
-            wav_buffer.seek(0)
-            with open(output_file, 'wb') as f:
-                f.write(wav_buffer.read())
+            torchaudio.save(output_file, torch.tensor(output["wav"]).unsqueeze(0), 24000)
 
+    
     # API LOCAL Methods
     elif params["tts_method_api_local"]:
         # Streaming only allowed for XTTSv2 local
@@ -425,9 +421,9 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
 
         # Set the correct output path (different from the if statement)
         print(f"[{params['branding']}TTSGen] Using API Local")
-        wav_buffer = io.BytesIO()
         model.tts_to_file(
             text=text,
+            file_path=output_file,
             speaker_wav=[f"{this_dir}/voices/{voice}"],
             language=language,
             temperature=temperature,
@@ -435,11 +431,7 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
             repetition_penalty=repetition_penalty,
             top_k=model.config.top_k,
             top_p=model.config.top_p,
-            file_object=wav_buffer
         )
-        wav_buffer.seek(0)
-        with open(output_file, 'wb') as f:
-            f.write(wav_buffer.read())
 
     # API TTS
     elif params["tts_method_api_tts"]:
@@ -448,16 +440,12 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
             raise ValueError("Streaming is only supported in XTTSv2 local")
 
         print(f"[{params['branding']}TTSGen] Using API TTS")
-        wav_buffer = io.BytesIO()
         model.tts_to_file(
             text=text,
+            file_path=output_file,
             speaker_wav=[f"{this_dir}/voices/{voice}"],
             language=language,
-            file_object=wav_buffer
         )
-        wav_buffer.seek(0)
-        with open(output_file, 'wb') as f:
-            f.write(wav_buffer.read())
 
     # Print Generation time and settings
     generate_end_time = time.time()  # Record the end time to generate TTS
@@ -469,6 +457,7 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
     if params["low_vram"] and device == "cuda":
         await switch_device()
     return
+
 
 # TTS VOICE GENERATION METHODS - generate TTS API
 @app.route("/api/generate", methods=["POST"])

@@ -84,7 +84,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--server_url",
-        default="https://f4aacd6da9151.notebooksb.jarvislabs.net",
+        default="https://a4e03765a8f31.notebooksc.jarvislabs.net",
     )
     parser.add_argument(
         "-r", "--requests",
