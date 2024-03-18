@@ -100,7 +100,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--voice",
-        default="female_01.wav",
+        default="male_01.wav",
         help="Voice to use for TTS"
     )
     # Use the server_url variable in your code
