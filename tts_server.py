@@ -394,7 +394,7 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
             print(f"[{params['branding']}TTSGen] \033[91mError:\033[0m {e}")
             print(f"[{params['branding']}TTSGen] \033[91mClearing GPU memory and retrying...\033[0m")
             # Retry the inference with reduced batch size
-            common_args["stream_chunk_size"] = 10
+            common_args["stream_chunk_size"] = 20
             output = inference_func(**common_args)
 
         # Process the output based on streaming or non-streaming
