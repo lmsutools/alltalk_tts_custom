@@ -411,7 +411,7 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
                 process = (
                     ffmpeg
                     .input('pipe:', format='s16le', ar=24000, ac=1)
-                    .output('pipe:', format='mp3', audio_bitrate='128k', acodec='libmp3lame')
+                    .output('pipe:', format='mp3', audio_bitrate='32k', acodec='libmp3lame')
                     .overwrite_output()
                     .run_async(pipe_stdin=True, pipe_stdout=True)
                 )
