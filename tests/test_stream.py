@@ -84,8 +84,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--text",
         default=("So If you encounter permission errors while installing packages, you can try running PowerShells. "
-                 "So If you encounter permission errors while installing packages, you can try running PowerShells. "
-                 "On Wikipedia and other sites running on MediaWiki "),
+                 "These warnings indicate that there might be potential loss of precision or truncation when converting values between different data types. "
+                 ),
         help="text input for TTS"
     )
     parser.add_argument(

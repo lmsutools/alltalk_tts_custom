@@ -397,22 +397,19 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
         # Process the output based on streaming or non-streaming
         if streaming:
             # Streaming-specific operations
-            file_chunks = []
-            wav_buf = io.BytesIO()
-            with wave.open(wav_buf, "wb") as vfout:
-                vfout.setnchannels(1)
-                vfout.setsampwidth(2)
-                vfout.setframerate(24000)
-                vfout.writeframes(b"")
-            wav_buf.seek(0)
-            yield wav_buf.read()
+            wav_header = io.BytesIO()
+            with wave.open(wav_header, "wb") as vfwav:
+                vfwav.setnchannels(1)
+                vfwav.setsampwidth(2)
+                vfwav.setframerate(24000)
+                vfwav.writeframes(b"")
+            wav_header.seek(0)
+            yield wav_header.read()
 
             for i, chunk in enumerate(output):
-                file_chunks.append(chunk)
                 if isinstance(chunk, list):
                     chunk = torch.cat(chunk, dim=0)
-                chunk = chunk.clone().detach().cpu().numpy()
-                chunk = chunk[None, : int(chunk.shape[0])]
+                chunk = chunk.squeeze().cpu().numpy()
                 chunk = np.clip(chunk, -1, 1)
                 chunk = (chunk * 32767).astype(np.int16)
                 yield chunk.tobytes()
