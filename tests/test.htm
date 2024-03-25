@@ -4,6 +4,7 @@
 <head>
     <title>TTS Server Test</title>
     <link href="test_load.css" rel="stylesheet">
+    <script src="./pcmplayer.js"></script>
     <style>
         #numRequests,
         #rampUpSeconds {
@@ -167,6 +168,49 @@
         function sendTTSRequest(index, textInput) {
             const requestStartTime = Date.now();
             let serverUrl = serverUrlInput.value.trim();
+            if (serverUrl.endsWith('/')) serverUrl = serverUrl.slice(0, -1);
+
+            const textSentSpan = document.getElementById(`textSent${index}`);
+            textSentSpan.textContent = textInput;
+
+            const encodedText = encodeURIComponent(textInput);
+            const streamingUrl = `${serverUrl}/api/tts-generate-streaming?text=${encodedText}&output_file=output${index}.wav`;
+
+            // Initialize PCMPlayer with appropriate options (adjust according to actual audio format)
+            const player = new PCMPlayer({
+                encoding: '16bitInt',
+                channels: 1,
+                sampleRate: 24000,
+                flushingTime: 200
+            });
+
+            fetch(streamingUrl)
+                .then(response => {
+                    const responseTime = Date.now() - requestStartTime;
+                    document.getElementById(`responseTime${index}`).textContent = responseTime;
+                    latencies.push(responseTime);
+
+                    if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+                    const reader = response.body.getReader();
+                    function pushAudioData({ done, value }) {
+                        if (done) {
+                            console.log('Stream finished.');
+                            return;
+                        }
+                        player.feed(value);
+                        return reader.read().then(pushAudioData);
+                    }
+                    return reader.read().then(pushAudioData);
+                })
+                .then(() => {
+                    const playbackStartTime = Date.now() - requestStartTime;
+                    document.getElementById(`playbackStartTime${index}`).textContent = playbackStartTime;
+                })
+                .catch(error => console.error('Error:', error));
+        }
+            const requestStartTime = Date.now();
+            let serverUrl = serverUrlInput.value.trim();
 
             if (serverUrl.endsWith('/')) {
                 serverUrl = serverUrl.slice(0, -1);
@@ -223,7 +267,7 @@
                         console.error('Error:', error);
                     });
             });
-        }
+        
 
         function calculateStats() {
             const numRequests = latencies.length;

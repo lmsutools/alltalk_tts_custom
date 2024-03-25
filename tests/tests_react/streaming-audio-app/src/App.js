@@ -6,7 +6,7 @@ const App = () => {
   const sourceRef = useRef(null);
   const [totalResponseTime, setTotalResponseTime] = useState(null);
   const [totalCharacterCount, setTotalCharacterCount] = useState(null);
-  const [serverUrl, setServerUrl] = useState('https://511b46078d831.notebooksd.jarvislabs.net');
+  const [serverUrl, setServerUrl] = useState('https://a160ee47ba951.notebooksg.jarvislabs.net/');
   const [inputText, setInputText] = useState('So If you encounter permission errors while installing packages, you can try running PowerShells. On Wikipedia and other sites running on MediaWiki');
   const [firstChunkReceivedAt, setFirstChunkReceivedAt] = useState(null);
 
@@ -21,40 +21,48 @@ const App = () => {
 
   const fetchAudioChunks = async () => {
     const startTime = performance.now();
-    const url = new URL(`${serverUrl.replace(/\/$/, '')}/api/tts-generate-streaming`);
-    url.searchParams.append('text', inputText);
-    url.searchParams.append('voice', 'female_01.wav');
-    url.searchParams.append('language', 'en');
-    url.searchParams.append('output_file', 'output.mp3');
+    const url = `${serverUrl.replace(/\/$/, '')}/api/tts-generate-streaming?text=${encodeURIComponent(inputText)}&voice=female_01.wav&language=en&output_file=output.mp3`;
   
     const response = await fetch(url);
     const reader = response.body.getReader();
   
-    const audioContext = audioContextRef.current;
-    const audioSource = audioContext.createBufferSource();
-    audioSource.connect(audioContext.destination);
+    const audio = new Audio();
+    const mediaSource = new MediaSource();
+    audio.src = URL.createObjectURL(mediaSource);
   
-    let isFirstChunk = true;
+    mediaSource.addEventListener('sourceopen', async () => {
+      try {
+        const sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg'); // Ensure this matches the MIME type of your audio
+        audio.play(); // Attempt to play audio, though actual playback may start after appending data
   
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
+        let isFirstChunk = true;
   
-      if (isFirstChunk) {
-        const firstChunkTime = (performance.now() - startTime) / 1000;
-        setFirstChunkReceivedAt(firstChunkTime.toFixed(3));
-        isFirstChunk = false;
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) {
+            mediaSource.endOfStream();
+            const endTime = performance.now();
+            setTotalResponseTime(((endTime - startTime) / 1000).toFixed(3));
+            setTotalCharacterCount(inputText.length);
+            break;
+          }
+  
+          if (isFirstChunk) {
+            setFirstChunkReceivedAt(((performance.now() - startTime) / 1000).toFixed(3));
+            isFirstChunk = false;
+          }
+  
+          if (sourceBuffer.updating) {
+            await new Promise(resolve => sourceBuffer.addEventListener('updateend', resolve, { once: true }));
+          }
+          sourceBuffer.appendBuffer(value);
+        }
+      } catch (error) {
+        console.error('Error during fetch and playback:', error);
       }
-  
-      const audioData = await audioContext.decodeAudioData(value.buffer);
-      audioSource.buffer = audioData;
-      audioSource.start();
-    }
-  
-    const endTime = performance.now();
-    setTotalResponseTime((endTime - startTime) / 1000);
-    setTotalCharacterCount(inputText.length);
+    });
   };
+  
   
   // Handlers for input fields changes
   const handleServerUrlChange = (e) => {
