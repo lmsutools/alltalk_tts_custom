@@ -32,9 +32,13 @@ const App = () => {
   
     const audioContext = audioContextRef.current;
     const sampleRate = 24000;
-    let currentTime = 0;
+    const bytesPerSample = 2;
+    const numChannels = 1;
+  
+    let audioBuffer = null;
+    let audioBufferOffset = 0;
+  
     let isFirstChunk = true;
-    let remainingBytes = new Uint8Array(0);
   
     while (true) {
       const { done, value } = await reader.read();
@@ -44,27 +48,36 @@ const App = () => {
         const firstChunkTime = (performance.now() - startTime) / 1000;
         setFirstChunkReceivedAt(firstChunkTime.toFixed(3));
         isFirstChunk = false;
+  
+        // Skip the WAV header
+        continue;
       }
   
-      const combinedBytes = new Uint8Array(remainingBytes.length + value.length);
-      combinedBytes.set(remainingBytes);
-      combinedBytes.set(value, remainingBytes.length);
+      if (!audioBuffer) {
+        audioBuffer = audioContext.createBuffer(numChannels, value.length / bytesPerSample, sampleRate);
+      } else {
+        const tmpBuffer = audioContext.createBuffer(numChannels, value.length / bytesPerSample, sampleRate);
+        const tmpData = tmpBuffer.getChannelData(0);
+        tmpData.set(new Float32Array(value.buffer));
   
-      const bytesPerSample = 4;
-      const numSamples = Math.floor(combinedBytes.length / bytesPerSample);
-      const sampleBytes = combinedBytes.slice(0, numSamples * bytesPerSample);
-      remainingBytes = combinedBytes.slice(numSamples * bytesPerSample);
+        const concatBuffer = audioContext.createBuffer(numChannels, audioBuffer.length + tmpBuffer.length, sampleRate);
+        concatBuffer.getChannelData(0).set(audioBuffer.getChannelData(0));
+        concatBuffer.getChannelData(0).set(tmpData, audioBuffer.length);
   
-      const audioBuffer = audioContext.createBuffer(1, numSamples, sampleRate);
-      const float32Array = new Float32Array(sampleBytes.buffer);
-      audioBuffer.copyToChannel(float32Array, 0, 0);
+        audioBuffer = concatBuffer;
+      }
   
-      const source = audioContext.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(audioContext.destination);
-      source.start(currentTime);
+      audioBufferOffset += value.length / bytesPerSample;
   
-      currentTime += audioBuffer.duration;
+      if (audioBufferOffset >= audioBuffer.length) {
+        const source = audioContext.createBufferSource();
+        source.buffer = audioBuffer;
+        source.connect(audioContext.destination);
+        source.start();
+  
+        audioBuffer = null;
+        audioBufferOffset = 0;
+      }
     }
   
     const endTime = performance.now();
