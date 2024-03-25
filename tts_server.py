@@ -9,6 +9,7 @@ from TTS.tts.configs.xtts_config import XttsConfig
 from TTS.tts.models.xtts import Xtts
 import io
 import wave
+from pydub import AudioSegment
 
 ##########################
 #### Webserver Imports####
@@ -397,29 +398,28 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
         # Process the output based on streaming or non-streaming
         if streaming:
             # Streaming-specific operations
-            file_chunks = []
-            wav_buf = io.BytesIO()
-            with wave.open(wav_buf, "wb") as vfout:
-                vfout.setnchannels(1)
-                vfout.setsampwidth(2)
-                vfout.setframerate(24000)
-                vfout.writeframes(b"")
-            wav_buf.seek(0)
-            yield wav_buf.read()
-
             for i, chunk in enumerate(output):
-                file_chunks.append(chunk)
                 if isinstance(chunk, list):
                     chunk = torch.cat(chunk, dim=0)
-                chunk = chunk.clone().detach().cpu().numpy()
-                chunk = chunk[None, : int(chunk.shape[0])]
+                chunk = chunk.squeeze().cpu().numpy()
                 chunk = np.clip(chunk, -1, 1)
                 chunk = (chunk * 32767).astype(np.int16)
-                yield chunk.tobytes()
+
+                # Convert the chunk to MP3 format
+                audio_segment = AudioSegment(
+                    chunk.tobytes(),
+                    frame_rate=24000,
+                    sample_width=2,
+                    channels=1
+                )
+                mp3_data = io.BytesIO()
+                audio_segment.export(mp3_data, format="mp3", bitrate="128k")
+                mp3_data.seek(0)
+
+                yield mp3_data.read()
         else:
             # Non-streaming-specific operation
             torchaudio.save(output_file, torch.tensor(output["wav"]).unsqueeze(0), 24000)
-
     # API LOCAL Methods
     elif params["tts_method_api_local"]:
         # Streaming only allowed for XTTSv2 local
