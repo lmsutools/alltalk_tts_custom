@@ -45,6 +45,48 @@ def stream_ffplay(audio_stream, output_file, save=True):
                 if not first_chunk_received:
                     temp_file.write(chunk)
                     temp_file.flush()
+                    
+                    print("Audio Information (First Chunk):")
+
+                    # Get WAV format information using ffprobe
+                    ffprobe_cmd = ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", temp_file.name]
+                    ffprobe_output = subprocess.check_output(ffprobe_cmd)
+                    ffprobe_data = json.loads(ffprobe_output)
+
+                    # Extract relevant information
+                    audio_stream_info = ffprobe_data["streams"][0]
+                    sample_fmt = audio_stream_info["sample_fmt"]
+                    channels = audio_stream_info["channels"]
+                    sample_rate = audio_stream_info["sample_rate"]
+
+                    # Print WAV format information
+                    print(f" - Sample format: {sample_fmt}")
+                    print(f" - Channels: {channels} ({'mono' if channels == 1 else 'stereo'})")
+                    print(f" - Sample rate: {sample_rate} Hz")
+
+                    first_chunk_received = True
+
+    # close on finish
+    ffplay_proc.stdin.close()
+    ffplay_proc.wait()
+
+    # Remove the temporary file
+    os.unlink(temp_file.name)
+    if not save:
+        ffplay_cmd = ["ffplay", "-nodisp", "-probesize", "1024", "-autoexit", "-"]
+    else:
+        print("Saving to", output_file)
+        ffplay_cmd = ["ffmpeg", "-probesize", "1024", "-i", "-", output_file]
+
+    ffplay_proc = subprocess.Popen(ffplay_cmd, stdin=subprocess.PIPE, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    first_chunk_received = False
+    with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+        for chunk in audio_stream:
+            if chunk is not None:
+                ffplay_proc.stdin.write(chunk)
+                if not first_chunk_received:
+                    temp_file.write(chunk)
+                    temp_file.flush()
                 
                     print("Audio Information (First Chunk):")
                   

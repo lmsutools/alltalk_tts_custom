@@ -1,112 +1,59 @@
-
-import React, { useEffect, useRef, useState } from 'react';
-import './App.css';
+import React, { useState, useRef } from 'react';
+import WavPlayer from 'webaudio-wav-stream-player';
 
 const App = () => {
-  const audioContextRef = useRef(null);
-  const sourceRef = useRef(null);
-  const [totalResponseTime, setTotalResponseTime] = useState(null);
-  const [totalCharacterCount, setTotalCharacterCount] = useState(null);
-  const [serverUrl, setServerUrl] = useState('https://d0987c0201e11.notebooksi.jarvislabs.net');
+  const [serverUrl, setServerUrl] = useState('https://2ab7edc03be71.notebooksb.jarvislabs.net/');
   const [inputText, setInputText] = useState('So If you encounter permission errors while installing packages, you can try running PowerShells. On Wikipedia and other sites running on MediaWiki');
+  const [totalResponseTime, setTotalResponseTime] = useState(null);
+  const [totalCharacterCount, setTotalCharacterCount] = useState(0);
   const [firstChunkReceivedAt, setFirstChunkReceivedAt] = useState(null);
+  const [firstChunkPlayedAt, setFirstChunkPlayedAt] = useState(null);
 
-  useEffect(() => {
-    audioContextRef.current = new AudioContext();
-    return () => {
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-      }
-    };
-  }, []);
+  const player = useRef(new WavPlayer());
+  const startTimeRef = useRef(null);
 
-  const fetchAudioChunks = async () => {
-    const startTime = performance.now();
-    const url = `${serverUrl.replace(/\/$/, '')}/api/tts-generate-streaming?text=${encodeURIComponent(inputText)}&voice=female_01.wav&language=en&output_file=output.mp3`;
-    const response = await fetch(url);
-    const reader = response.body.getReader();
+  const fetchAudioChunks = () => {
+    const url = `${serverUrl.replace(/\/$/, '')}/api/tts-generate-streaming?text=${encodeURIComponent(inputText)}&voice=female_02.wav&language=en&output_file=output.wav`;
+    setTotalCharacterCount(inputText.length);
+    setFirstChunkReceivedAt(null);
+    setFirstChunkPlayedAt(null);
+    startTimeRef.current = performance.now();
 
-    const mediaSource = new MediaSource();
-    const audio = new Audio();
-    audio.src = URL.createObjectURL(mediaSource);
-
-    mediaSource.addEventListener('sourceopen', async () => {
-      try {
-        const sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg'); // Ensure this matches the MIME type of your audio
-        audio.play(); // Attempt to play audio, though actual playback may start after appending data
-
-        let isFirstChunk = true;
-        while (true) {
-          const { done, value } = await reader.read();
-          if (done) {
-            mediaSource.endOfStream();
-            const endTime = performance.now();
-            setTotalResponseTime(((endTime - startTime) / 1000).toFixed(3));
-            setTotalCharacterCount(inputText.length);
-            break;
-          }
-          if (isFirstChunk) {
-            setFirstChunkReceivedAt(((performance.now() - startTime) / 1000).toFixed(3));
-            isFirstChunk = false;
-          }
-          if (sourceBuffer.updating) {
-            await new Promise(resolve => sourceBuffer.addEventListener('updateend', resolve, { once: true }));
-          }
-          sourceBuffer.appendBuffer(value);
-        }
-      } catch (error) {
-        console.error('Error during fetch and playback:', error);
-      }
+    player.current.play(url).then(() => {
+      setTotalResponseTime(performance.now() - startTimeRef.current);
     });
+
+    player.current.onFirstChunkReceived = () => {
+      setFirstChunkReceivedAt(performance.now() - startTimeRef.current);
+    };
+
+    player.current.onFirstChunkPlayed = () => {
+      setFirstChunkPlayedAt(performance.now() - startTimeRef.current);
+    };
   };
-  
-  // Handlers for input fields changes
-  const handleServerUrlChange = (e) => {
-    setServerUrl(e.target.value);
+
+  const stopAudio = () => {
+    player.current.stop();
   };
-  
-  const handleInputChange = (e) => {
-    setInputText(e.target.value);
-  };
-  
 
   return (
-    <div className="app">
-      <h1>Text-to-Speech Streaming App</h1>
-      <div className="input-group">
+    <div>
+      <h1>Audio Streaming Example</h1>
+      <div>
         <label htmlFor="serverUrl">Server URL:</label>
-        <input
-          type="text"
-          id="serverUrl"
-          value={serverUrl}
-          onChange={handleServerUrlChange}
-          className="input-field"
-        />
+        <input type="text" id="serverUrl" value={serverUrl} onChange={(e) => setServerUrl(e.target.value)} />
       </div>
-      <div className="input-group">
+      <div>
         <label htmlFor="inputText">Input Text:</label>
-        <textarea
-          id="inputText"
-          value={inputText}
-          onChange={handleInputChange}
-          rows={4}
-          className="input-field"
-        />
+        <textarea id="inputText" value={inputText} onChange={(e) => setInputText(e.target.value)}></textarea>
       </div>
-      <button className="send-button" onClick={fetchAudioChunks}>
-        Send Request
-      </button>
-      <div className="info-container">
-        {firstChunkReceivedAt !== null && (
-          <p>First Chunk Received At: {firstChunkReceivedAt} seconds</p>
-        )}
-        {totalCharacterCount !== null && (
-          <p>Total Character Count: {totalCharacterCount}</p>
-        )}
-        {totalResponseTime !== null && (
-          <p>Total Response Time: {totalResponseTime} seconds</p>
-        )}
-      </div>
+      <button onClick={fetchAudioChunks}>Fetch Audio</button>
+      <button onClick={stopAudio}>Stop Audio</button>
+      <p>
+        Total Response Time: {totalResponseTime !== null ? (totalResponseTime / 1000).toFixed(2) : '-'} seconds<br />
+        Total Character Count: {totalCharacterCount}<br />
+
+      </p>
     </div>
   );
 };
