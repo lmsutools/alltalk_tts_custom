@@ -6,7 +6,7 @@ const App = () => {
   const sourceRef = useRef(null);
   const [totalResponseTime, setTotalResponseTime] = useState(null);
   const [totalCharacterCount, setTotalCharacterCount] = useState(null);
-  const [serverUrl, setServerUrl] = useState('https://bbe8dd017c361.notebooksc.jarvislabs.net');
+  const [serverUrl, setServerUrl] = useState('https://511b46078d831.notebooksd.jarvislabs.net');
   const [inputText, setInputText] = useState('So If you encounter permission errors while installing packages, you can try running PowerShells. On Wikipedia and other sites running on MediaWiki');
   const [firstChunkReceivedAt, setFirstChunkReceivedAt] = useState(null);
 
@@ -25,18 +25,14 @@ const App = () => {
     url.searchParams.append('text', inputText);
     url.searchParams.append('voice', 'female_01.wav');
     url.searchParams.append('language', 'en');
-    url.searchParams.append('output_file', 'output.wav');
+    url.searchParams.append('output_file', 'output.mp3');
   
     const response = await fetch(url);
     const reader = response.body.getReader();
   
     const audioContext = audioContextRef.current;
-    const sampleRate = 24000;
-    const bytesPerSample = 2;
-    const numChannels = 1;
-  
-    let audioBuffer = null;
-    let audioBufferOffset = 0;
+    const audioSource = audioContext.createBufferSource();
+    audioSource.connect(audioContext.destination);
   
     let isFirstChunk = true;
   
@@ -48,50 +44,27 @@ const App = () => {
         const firstChunkTime = (performance.now() - startTime) / 1000;
         setFirstChunkReceivedAt(firstChunkTime.toFixed(3));
         isFirstChunk = false;
-  
-        // Skip the WAV header
-        continue;
       }
   
-      if (!audioBuffer) {
-        audioBuffer = audioContext.createBuffer(numChannels, value.length / bytesPerSample, sampleRate);
-      } else {
-        const tmpBuffer = audioContext.createBuffer(numChannels, value.length / bytesPerSample, sampleRate);
-        const tmpData = tmpBuffer.getChannelData(0);
-        tmpData.set(new Float32Array(value.buffer));
-  
-        const concatBuffer = audioContext.createBuffer(numChannels, audioBuffer.length + tmpBuffer.length, sampleRate);
-        concatBuffer.getChannelData(0).set(audioBuffer.getChannelData(0));
-        concatBuffer.getChannelData(0).set(tmpData, audioBuffer.length);
-  
-        audioBuffer = concatBuffer;
-      }
-  
-      audioBufferOffset += value.length / bytesPerSample;
-  
-      if (audioBufferOffset >= audioBuffer.length) {
-        const source = audioContext.createBufferSource();
-        source.buffer = audioBuffer;
-        source.connect(audioContext.destination);
-        source.start();
-  
-        audioBuffer = null;
-        audioBufferOffset = 0;
-      }
+      const audioData = await audioContext.decodeAudioData(value.buffer);
+      audioSource.buffer = audioData;
+      audioSource.start();
     }
   
     const endTime = performance.now();
     setTotalResponseTime((endTime - startTime) / 1000);
     setTotalCharacterCount(inputText.length);
   };
-
-  const handleInputChange = (event) => {
-    setInputText(event.target.value);
+  
+  // Handlers for input fields changes
+  const handleServerUrlChange = (e) => {
+    setServerUrl(e.target.value);
   };
-
-  const handleServerUrlChange = (event) => {
-    setServerUrl(event.target.value);
+  
+  const handleInputChange = (e) => {
+    setInputText(e.target.value);
   };
+  
 
   return (
     <div className="app">
