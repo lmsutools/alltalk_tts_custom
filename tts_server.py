@@ -10,6 +10,7 @@ from TTS.tts.models.xtts import Xtts
 import io
 import wave
 from pydub import AudioSegment
+import ffmpeg
 
 ##########################
 #### Webserver Imports####
@@ -405,21 +406,25 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
                 chunk = np.clip(chunk, -1, 1)
                 chunk = (chunk * 32767).astype(np.int16)
 
-                # Convert the chunk to MP3 format
-                audio_segment = AudioSegment(
-                    chunk.tobytes(),
-                    frame_rate=24000,
-                    sample_width=2,
-                    channels=1
-                )
+                # Convert the chunk to MP3 format using ffmpeg-python
                 mp3_data = io.BytesIO()
-                audio_segment.export(mp3_data, format="mp3", bitrate="128k")
-                mp3_data.seek(0)
+                process = (
+                    ffmpeg
+                    .input('pipe:', format='s16le', ar=24000, ac=1)
+                    .output(mp3_data, format='mp3', audio_bitrate='128k', acodec='libmp3lame')
+                    .overwrite_output()
+                    .run_async(pipe_stdin=True, pipe_stdout=True)
+                )
+                process.stdin.write(chunk.tobytes())
+                process.stdin.close()
+                process.wait()
 
+                mp3_data.seek(0)
                 yield mp3_data.read()
         else:
             # Non-streaming-specific operation
             torchaudio.save(output_file, torch.tensor(output["wav"]).unsqueeze(0), 24000)
+            
     # API LOCAL Methods
     elif params["tts_method_api_local"]:
         # Streaming only allowed for XTTSv2 local
@@ -464,6 +469,7 @@ async def generate_audio_internal(text, voice, language, temperature, repetition
     if params["low_vram"] and device == "cuda":
         await switch_device()
     return
+
 
 # TTS VOICE GENERATION METHODS - generate TTS API
 @app.route("/api/generate", methods=["POST"])

@@ -1,3 +1,4 @@
+
 import React, { useEffect, useRef, useState } from 'react';
 import './App.css';
 
@@ -6,7 +7,7 @@ const App = () => {
   const sourceRef = useRef(null);
   const [totalResponseTime, setTotalResponseTime] = useState(null);
   const [totalCharacterCount, setTotalCharacterCount] = useState(null);
-  const [serverUrl, setServerUrl] = useState('https://a160ee47ba951.notebooksg.jarvislabs.net/');
+  const [serverUrl, setServerUrl] = useState('https://d0987c0201e11.notebooksi.jarvislabs.net');
   const [inputText, setInputText] = useState('So If you encounter permission errors while installing packages, you can try running PowerShells. On Wikipedia and other sites running on MediaWiki');
   const [firstChunkReceivedAt, setFirstChunkReceivedAt] = useState(null);
 
@@ -22,21 +23,19 @@ const App = () => {
   const fetchAudioChunks = async () => {
     const startTime = performance.now();
     const url = `${serverUrl.replace(/\/$/, '')}/api/tts-generate-streaming?text=${encodeURIComponent(inputText)}&voice=female_01.wav&language=en&output_file=output.mp3`;
-  
     const response = await fetch(url);
     const reader = response.body.getReader();
-  
-    const audio = new Audio();
+
     const mediaSource = new MediaSource();
+    const audio = new Audio();
     audio.src = URL.createObjectURL(mediaSource);
-  
+
     mediaSource.addEventListener('sourceopen', async () => {
       try {
         const sourceBuffer = mediaSource.addSourceBuffer('audio/mpeg'); // Ensure this matches the MIME type of your audio
         audio.play(); // Attempt to play audio, though actual playback may start after appending data
-  
+
         let isFirstChunk = true;
-  
         while (true) {
           const { done, value } = await reader.read();
           if (done) {
@@ -46,12 +45,10 @@ const App = () => {
             setTotalCharacterCount(inputText.length);
             break;
           }
-  
           if (isFirstChunk) {
             setFirstChunkReceivedAt(((performance.now() - startTime) / 1000).toFixed(3));
             isFirstChunk = false;
           }
-  
           if (sourceBuffer.updating) {
             await new Promise(resolve => sourceBuffer.addEventListener('updateend', resolve, { once: true }));
           }
@@ -62,7 +59,6 @@ const App = () => {
       }
     });
   };
-  
   
   // Handlers for input fields changes
   const handleServerUrlChange = (e) => {
