@@ -1,10 +1,8 @@
 # /.launch arguments
-  '-w' for number of workers - 1 worker is default.
-  '-c' for number of chunks on the streaming mode. The lower the fastest, but could have lower quality. 20 is default.
-
+launch wav server version with 5 agents
   Example: 
 ```
-./launch.sh -r 5 -c 15
+./launch.sh 5 wav
 ```
 # Server Auto Installer Script
 
