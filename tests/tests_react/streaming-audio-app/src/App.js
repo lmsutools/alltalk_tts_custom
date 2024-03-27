@@ -2,8 +2,8 @@ import React, { useState, useEffect, useRef } from 'react';
 import WavPlayer from 'webaudio-wav-stream-player';
 
 const App = () => {
-  const [serverUrl, setServerUrl] = useState('https://4c10664666e31.notebooksj.jarvislabs.net/');
-  const [inputText, setInputText] = useState('So If you encounter permission errors while installing packages, you can try running PowerShell. On Wikipedia and other sites running on MediaWiki');
+  const [serverUrl, setServerUrl] = useState('https://86a86f81f6331.notebooksk.jarvislabs.net');
+  const [inputText, setInputText] = useState('The reason why I´m calling is because our company was hired by a group of local investors to see if you would be interested in entertaining an all-cash offer on this property.');
   const [totalResponseTime, setTotalResponseTime] = useState(null);
   const [totalCharacterCount, setTotalCharacterCount] = useState(0);
   const [isParallelActive, setIsParallelActive] = useState(false);

@@ -1,8 +1,8 @@
 # /.launch arguments
-launch wav server version with 5 agents
+launch server version with 5 agents
   Example: 
 ```
-./launch.sh 5 wav
+./launch.sh 5
 ```
 # Server Auto Installer Script
 
